@@ -159,12 +159,12 @@ const MARV_PROJECTION_ANCHORS=Object.freeze([
  {ball_color:'gray',mass_g:100},{ball_color:'red',mass_g:225},{ball_color:'orange',mass_g:350},{ball_color:'blue',mass_g:450},{ball_color:'green',mass_g:1000},
 ]);
 function projectMarvBall(original,ball,drill){
- if(drill==='Roll-Ins')return {ball_model:ball.model,ball_color:ball.color,mass_oz:ball.mass_oz,mass_g:ball.mass_g,drill,target_mph:null,status:'not_projected',application_status:'unvalidated_marv_projection',sources:[],observations:[]};
- const nearest=MARV_PROJECTION_ANCHORS.reduce((best,item)=>Math.abs(item.mass_g-ball.mass_g)<Math.abs(best.mass_g-ball.mass_g)?item:best,MARV_PROJECTION_ANCHORS[0]);
+ const isRollIn=drill==='Roll-Ins'; const rollInColors=['Dark gray','Orange','Yellow','Red']; if(isRollIn&&!rollInColors.includes(ball.color))return {ball_model:ball.model,ball_color:ball.color,mass_oz:ball.mass_oz,mass_g:ball.mass_g,drill,target_mph:null,status:'not_projected',application_status:'unvalidated_marv_projection',sources:[],observations:[]}; const anchors=isRollIn?MARV_PROJECTION_ANCHORS.filter(item=>original.cells.find(cell=>cell.ball_color===item.ball_color&&cell.drill===drill)?.target_mph!==null):MARV_PROJECTION_ANCHORS;
+ const nearest=anchors.reduce((best,item)=>Math.abs(item.mass_g-ball.mass_g)<Math.abs(best.mass_g-ball.mass_g)?item:best,anchors[0]);
  let basis;
- if(Math.abs(nearest.mass_g-ball.mass_g)<=5)basis=[{...nearest,coefficient:1}];
+ if(Math.abs(nearest.mass_g-ball.mass_g)<=5||(isRollIn&&ball.mass_g<anchors[0].mass_g))basis=[{...nearest,coefficient:1}];
  else{
-  const lower=MARV_PROJECTION_ANCHORS.filter(item=>item.mass_g<ball.mass_g).at(-1),upper=MARV_PROJECTION_ANCHORS.find(item=>item.mass_g>ball.mass_g);
+  const lower=anchors.filter(item=>item.mass_g<ball.mass_g).at(-1),upper=anchors.find(item=>item.mass_g>ball.mass_g);
   if(!lower||!upper)return {ball_model:ball.model,ball_color:ball.color,mass_oz:ball.mass_oz,mass_g:ball.mass_g,drill,target_mph:null,status:'projection_unavailable',application_status:'unvalidated_marv_projection',sources:[],observations:[]};
   const upperWeight=(ball.mass_g-lower.mass_g)/(upper.mass_g-lower.mass_g);
   basis=[{...lower,coefficient:1-upperWeight},{...upper,coefficient:upperWeight}];
@@ -182,7 +182,7 @@ function projectMarvBall(original,ball,drill){
 export function getMarvReferences(velocity,rows){
  const original=getTargets(velocity,rows);
  const cells=original.cells.length?MARV_BALLS.flatMap(ball=>DRILLS.map(drill=>projectMarvBall(original,ball,drill))):[];
- return {...original,cells,application_status:'unvalidated_marv_projection',message:'MARV values are estimates transferred from Driveline references by nominal ball mass, rounded to 0.1 mph. Roll-Ins are omitted. No MARV-specific readings validate these cross-brand estimates; no error margin is established.'};
+ return {...original,cells,application_status:'unvalidated_marv_projection',message:'MARV values are estimates transferred from Driveline references by nominal ball mass, rounded to 0.1 mph. Roll-In projections are shown for dark gray, orange, yellow, and red MARV balls using available Driveline 225 g, 450 g, and 1,000 g readings. Other MARV Roll-Ins are omitted. No MARV-specific readings validate these cross-brand estimates; no error margin is established.'};
 }
 
 /** Blast metric bounds validate units, not player performance or age norms. */
