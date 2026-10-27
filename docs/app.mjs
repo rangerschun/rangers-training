@@ -1,7 +1,7 @@
 import {startTargetBaseline} from './target-baseline.mjs?v=velocity-baseline-fallback-20261027';
 import {startVisionVideos} from './vision-videos.mjs?v=schedule-auto-refresh-20261025';
 import { startConcentrationGrid } from './concentration-grid.mjs?v=concentration-marv-20261027';
-import { startGameChanger } from './gamechanger.mjs?v=rangers-player-sync-20261028';
+import { startGameChanger } from './gamechanger.mjs?v=rangers-team-diff-20261028';
 import {startCoachAccess} from './coach-access.mjs?v=rangers-organization-20261025';
 import {startDeviceMigration} from './device-migration-ui.mjs?v=rangers-organization-20261025';
 import {prepareDemoReset,runDemoReset} from './demo-reset.mjs?v=rangers-organization-20261025';
