@@ -153,7 +153,7 @@ export function startGameChanger({element:$}){
  });
  $('gamechanger-access-cancel').addEventListener('click',()=>{pendingPlayer=null;accessInput.value='';accessDialog.close();hidePlayerStats();});
  accessDialog.addEventListener('cancel',event=>{event.preventDefault();pendingPlayer=null;accessInput.value='';accessDialog.close();hidePlayerStats();});
-  fetch('./gamechanger-stats.json?v=gamechanger-team14-password1').then(response=>{if(!response.ok)throw new Error('Stats unavailable');return response.json();}).then(data=>{
+  fetch('./gamechanger-stats.json?v=gamechanger-updated-20261027').then(response=>{if(!response.ok)throw new Error('Stats unavailable');return response.json();}).then(data=>{
   seasons=data.seasons??[];seasonSelect.replaceChildren(...seasons.map(s=>new Option(s.label,s.id)));
   if(data.last_updated){const date=new Date(data.last_updated+'T12:00:00Z');updated.textContent='LAST UPDATED · '+new Intl.DateTimeFormat('en-CA',{dateStyle:'long',timeZone:'UTC'}).format(date);}
   seasonSelect.value=seasons.find(s=>s.id==='16U')?.id??seasons[0]?.id??'';fillPlayers(false);
