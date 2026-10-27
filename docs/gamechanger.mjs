@@ -34,14 +34,20 @@ const deltaText=(player,bench,type)=>{
  if(type==='mph')return sign+abs.toFixed(1)+' mph';
  return sign+(Number.isInteger(abs)?abs.toLocaleString():abs.toFixed(1));
 };
-export function startGameChanger({element:$,onPlayerAuthorized=()=>{}}){
- const seasonSelect=$('gamechanger-season'),playerSelect=$('gamechanger-player');
+export function startGameChanger({element:$,onPlayerAuthorized=()=>{}}){ const seasonSelect=$('gamechanger-season'),rangeSelect=$('gamechanger-range'),playerSelect=$('gamechanger-player');
  const statSelect=$('gamechanger-stat'),focus=$('gamechanger-focus');
  const message=$('gamechanger-message'),details=$('gamechanger-player-stats'),summary=$('gamechanger-summary'),comparison=$('gamechanger-comparison'),updated=$('gamechanger-updated');
- const accessDialog=$('gamechanger-access-dialog'),accessForm=$('gamechanger-access-form'),accessInput=$('gamechanger-access-password'),accessError=$('gamechanger-access-error');
- let pendingPlayer=null,authorizedPlayerKey='',pendingSyncName='';
- const buttons=[...document.querySelectorAll('[data-gamechanger-group]')];for(const button of buttons)if(button.dataset.gamechangerGroup==='fielding')button.hidden=true;let seasons=[],group='batting';
- function playerKey(season,player){return season&&player?season.id+'|'+player.id:'';}
+ const accessDialog=$('gamechanger-access-dialog'),accessForm=$('gamechanger-access-form'),accessInput=$('gamechanger-access-password'),accessError=$('gamechanger-access-error'); let pendingPlayer=null,authorizedPlayerKey='',pendingSyncName='';
+ const rangeLabels={full:'Full season stats',last_month:'Last month',last_10:'Last 10 games'};
+ const buttons=[...document.querySelectorAll('[data-gamechanger-group]')];for(const button of buttons)if(button.dataset.gamechangerGroup==='fielding')button.hidden=true;let seasons=[],group='batting'; function playerKey(season,player){return season&&player?season.id+'|'+player.id:'';}
+ function selectedRangeSeason(baseSeason){
+  if(!baseSeason)return null;const key=rangeSelect.value||'full';
+  if(key==='full')return baseSeason;
+  const snapshot=baseSeason.ranges?.[key];
+  if(snapshot)return {...baseSeason,...snapshot,id:baseSeason.id,label:baseSeason.label};
+  const games=Math.max(0,...baseSeason.players.map(player=>Number(player.batting?.GP)||0));
+  return key==='last_10'&&games<=10?baseSeason:null;
+ }
  function hidePlayerStats(){details.hidden=true;summary.replaceChildren();focus.replaceChildren();comparison.replaceChildren();message.hidden=false;message.textContent='Choose your player and enter your password to view their stats.';}
  function requestPlayer(season,player){pendingPlayer={season,player};accessInput.value='';accessError.hidden=true;accessError.textContent='';$('gamechanger-access-name').textContent=player.name;if(!accessDialog.open)accessDialog.showModal();accessInput.focus();}
  async function verifyPlayerPassword(player,password){
@@ -65,11 +71,10 @@ export function startGameChanger({element:$,onPlayerAuthorized=()=>{}}){
   }else note.textContent='No team benchmark';
   card.append(name,main,note);return card;
  }
- function rosterRank(season,player,group,key,type,direction){const current=player[group]?.[key];if(current===null||current===undefined||current===''||!Number.isFinite(Number(current))||Number(current)===0)return null;const values=[];for(const name of ROSTER){const rosterPlayer=season.players.find(candidate=>candidate.name===name),value=rosterPlayer?.[group]?.[key];if(value===null||value===undefined||value===''||!Number.isFinite(Number(value))){if(type==='int')values.push(0);continue;}values.push(Number(value));}const ahead=values.filter(value=>direction<0?value<Number(current):value>Number(current)).length;const rank=ahead+1;return rank<=6?rank:null;} function draw(){
-  const season=seasons.find(s=>s.id===seasonSelect.value),player=season?.players.find(p=>p.id===playerSelect.value);
-  if(player&&authorizedPlayerKey!==playerKey(season,player)){hidePlayerStats();return;}
-  details.hidden=!player;
-  if(!player){message.hidden=false;message.textContent=season?'Choose a player to see season stats and team comparisons.':'Loading GameChanger stats…';return;}
+ function rosterRank(season,player,group,key,type,direction){const current=player[group]?.[key];if(current===null||current===undefined||current===''||!Number.isFinite(Number(current))||Number(current)===0)return null;const values=[];for(const name of ROSTER){const rosterPlayer=season.players.find(candidate=>candidate.name===name),value=rosterPlayer?.[group]?.[key];if(value===null||value===undefined||value===''||!Number.isFinite(Number(value))){if(type==='int')values.push(0);continue;}values.push(Number(value));}const ahead=values.filter(value=>direction<0?value<Number(current):value>Number(current)).length;const rank=ahead+1;return rank<=6?rank:null;} function draw(){  const baseSeason=seasons.find(s=>s.id===seasonSelect.value),basePlayer=baseSeason?.players.find(p=>p.id===playerSelect.value);  if(basePlayer&&authorizedPlayerKey!==playerKey(baseSeason,basePlayer)){hidePlayerStats();return;}
+  const season=selectedRangeSeason(baseSeason),player=season?.players.find(p=>p.id===basePlayer?.id);
+  details.hidden=!player;  if(!basePlayer){message.hidden=false;message.textContent=baseSeason?'Choose a player to see stats and team comparisons.':'Loading GameChanger stats…';return;}
+  if(!season||!player){summary.replaceChildren();focus.replaceChildren();comparison.replaceChildren();message.hidden=false;message.textContent=(rangeLabels[rangeSelect.value]??'Selected range')+' stats have not been imported for this season yet.';return;}
   message.hidden=true;
   summary.replaceChildren(
    metricCard(season,player,'OPS','OPS','ops',1),metricCard(season,player,'AVG','Batting average','avg',1),
@@ -94,12 +99,9 @@ export function startGameChanger({element:$,onPlayerAuthorized=()=>{}}){
   }
   comparison.replaceChildren();
   const heading=document.createElement('div');heading.className='gc-comparison-heading';
-  const title=document.createElement('h2');title.textContent=config.label+' comparison';
-  const seasonLabel=document.createElement('span');seasonLabel.textContent=season.label+' · '+player.name+' · #'+player.number;
+  const title=document.createElement('h2');title.textContent=config.label+' comparison';  const seasonLabel=document.createElement('span');seasonLabel.textContent=season.label+' · '+(rangeLabels[rangeSelect.value]??rangeLabels.full)+' · '+player.name+' · #'+player.number;
   heading.append(title,seasonLabel);comparison.append(heading);
-  const note=document.createElement('p');note.className='gc-method-note';
-  note.textContent='Team averages use the 14-player roster; team rates use the full season export. Team rank compares the 14 roster players. Players outside the roster remain included in team rates and totals.';
-  comparison.append(note);
+  const note=document.createElement('p');note.className='gc-method-note';  note.textContent='Team averages use the 14-player roster for the selected range; team rates use its GameChanger export. Team rank compares the 14 roster players. Players outside the roster remain included in team rates and totals.';  comparison.append(note);
   const wrap=document.createElement('div');wrap.className='gc-table-wrap';
   const table=document.createElement('table');table.className='gc-stats-table';
   const head=document.createElement('thead'),headRow=document.createElement('tr');
@@ -132,8 +134,8 @@ export function startGameChanger({element:$,onPlayerAuthorized=()=>{}}){
   for(const button of buttons){const active=button.dataset.gamechangerGroup===group;button.classList.toggle('selected',active);button.setAttribute('aria-pressed',active?'true':'false');}
   draw();
  }
- for(const button of buttons)button.addEventListener('click',()=>setGroup(button.dataset.gamechangerGroup));
- statSelect.addEventListener('change',draw);
+ for(const button of buttons)button.addEventListener('click',()=>setGroup(button.dataset.gamechangerGroup)); statSelect.addEventListener('change',draw);
+ rangeSelect.addEventListener('change',draw);
  seasonSelect.addEventListener('change',()=>{authorizedPlayerKey='';playerSelect.value='';hidePlayerStats();fillPlayers(false);});
  playerSelect.addEventListener('change',()=>{
   const season=seasons.find(s=>s.id===seasonSelect.value),player=season?.players.find(p=>p.id===playerSelect.value);
