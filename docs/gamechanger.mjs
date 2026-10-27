@@ -73,7 +73,7 @@ export function startGameChanger({element:$}){
   if(!player){message.hidden=false;message.textContent=season?'Choose a player to see season stats and team comparisons.':'Loading GameChanger stats…';return;}
   message.hidden=true;
   summary.replaceChildren(
-   metricCard(season,player,'AVG','Batting average','avg',1),metricCard(season,player,'OPS','OPS','ops',1),
+   metricCard(season,player,'OPS','OPS','ops',1),metricCard(season,player,'AVG','Batting average','avg',1),
    metricCard(season,player,'H','Hits','int',1),metricCard(season,player,'RBI','Runs batted in','int',1)
   );
   const config=GROUPS[group],hasStats=group==='batting'?Number(player.batting.PA)>0:group==='pitching'?Number(player.pitching.GP)>0:Number(player.fielding.TC)>0;
