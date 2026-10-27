@@ -1,7 +1,7 @@
 import {startTargetBaseline} from './target-baseline.mjs?v=velocity-baseline-fallback-20261027';
 import {startVisionVideos} from './vision-videos.mjs?v=schedule-auto-refresh-20261025';
 import { startConcentrationGrid } from './concentration-grid.mjs?v=concentration-marv-20261027';
-import { startGameChanger } from './gamechanger.mjs?v=marv-rollin-gc-zero-rank-20261027';
+import { startGameChanger } from './gamechanger.mjs?v=marv-rollin-gc-zero-rank-copy-20261027';
 import {startCoachAccess} from './coach-access.mjs?v=rangers-organization-20261025';
 import {startDeviceMigration} from './device-migration-ui.mjs?v=rangers-organization-20261025';
 import {prepareDemoReset,runDemoReset} from './demo-reset.mjs?v=rangers-organization-20261025';
@@ -24,7 +24,7 @@ import { workoutActivity, workoutActivityCsv, workoutWeek } from './accountabili
 import { startWorkoutAccountability } from './accountability-ui.mjs?v=compact-workouts-20261025';
 import { journalChanges, journalToCsv, validateJournalEvent } from './journal.mjs?v=schedule-auto-refresh-20261025';
 import { startTeamJournal } from './journal-ui.mjs?v=schedule-auto-refresh-20261025';
-import { DRILLS, COLORS, getTargets, getDubsReferences, DUBS_BALLS, getMarvReferences, MARV_BALLS, summarizeThrows, BLAST_METRICS, validateBlastRecord, summarizeBlast, upsertBlastRecord, filterBlastRecords, blastDailyProgress, blastRecordsToCsv, WORKOUT_CATEGORIES, validateWorkout, upsertWorkout, summarizeWorkouts, workoutsToCsv, BASEBALL_CONTEXTS, BASEBALL_MOUND_DISTANCE_FT, BASEBALL_RADAR_DEVICE, validateBaseballSession, upsertBaseballSession, baseballSessionsToCsv } from './engine.mjs?v=marv-rollin-gc-zero-rank-20261027';
+import { DRILLS, COLORS, getTargets, getDubsReferences, DUBS_BALLS, getMarvReferences, MARV_BALLS, summarizeThrows, BLAST_METRICS, validateBlastRecord, summarizeBlast, upsertBlastRecord, filterBlastRecords, blastDailyProgress, blastRecordsToCsv, WORKOUT_CATEGORIES, validateWorkout, upsertWorkout, summarizeWorkouts, workoutsToCsv, BASEBALL_CONTEXTS, BASEBALL_MOUND_DISTANCE_FT, BASEBALL_RADAR_DEVICE, validateBaseballSession, upsertBaseballSession, baseballSessionsToCsv } from './engine.mjs?v=marv-rollin-gc-zero-rank-copy-20261027';
 import { WORKOUT_LIBRARY } from './library.mjs?v=schedule-auto-refresh-20261025';
 import { isWorkoutVideoUrl } from './library-tools.mjs?v=compact-workouts-20261025';
 
@@ -161,7 +161,7 @@ function renderTargets(announce = false) {
   $('result-heading').textContent = equipmentMode==='marv'?(valid?`MARV projected references at ${result.mound_mph} mph`:'MARV projected references'):valid ? `${equipmentMode === 'dubs' ? 'DUBS references & estimates' : 'targets'} at ${result.mound_mph} mph` : 'A source-backed target starts here.';
   const equipmentLabel=equipmentMode==='marv'?'MARV · PROJECTED · UNVALIDATED':equipmentMode==='dubs'?'DUBS · REFERENCES + 150 G PROJECTIONS':'ORIGINAL DRIVELINE OBSERVATIONS';
   $('result-player').textContent=($('player').value?$('player').value.toUpperCase():'SAMPLE BASELINE')+' · '+equipmentLabel;
-  $('board-legend').textContent=equipmentMode==='marv'?'PROJECTED MPH = estimate from Driveline by nominal mass; Roll-Ins omitted; not validated for MARV. — = unavailable.':equipmentMode==='dubs'?'PROJECTED = 150 g estimate. Roll-Ins omitted. — = no source value or projection.':'— Blank in source. No target assigned.';
+  $('board-legend').textContent=equipmentMode==='marv'?'PROJECTED MPH = estimate from Driveline by nominal mass; Roll-Ins shown for dark gray, orange, yellow, and red only; unvalidated for MARV. — = unavailable.':equipmentMode==='dubs'?'PROJECTED = 150 g estimate. Roll-Ins omitted. — = no source value or projection.':'— Blank in source. No target assigned.';
   $('empty-state').querySelector('h3').textContent = result.status === 'invalid' ? 'Enter a baseline to see the targets.' : 'That baseline is outside our source range.';
   $('empty-message').textContent = result.status === 'invalid' ? 'Use a measured mound fastball velocity between 70 and 86 mph.' : 'Screenshot observations cover 70–86 mph. Extrapolation is disabled.';
   $('method-result').textContent = valid ? result.status === 'observed'
@@ -169,7 +169,7 @@ function renderTargets(announce = false) {
     : `At ${result.mound_mph} mph, nonblank values are linearly interpolated between the ${result.lower_mph} and ${result.upper_mph} mph screenshots, then rounded to one decimal. Blank combinations are retained. This is an estimate, not the original calculator formula.`
     : 'Screenshot observations cover 70–86 mph. Extrapolation is disabled.';
   if(valid && equipmentMode==='dubs') $('method-result').textContent += ' Five DUBS rows copy nominally weight-matched Driveline references. Dark green 150 g has four separate projections: 60% of the gray 100 g reading plus 40% of the red 225 g reading for the same drill and mound baseline, rounded once to 0.1 mph. Decimal baselines also interpolate between neighboring screenshots before final rounding. Roll-Ins are omitted. This assumed straight-line relationship with mass has no 150 g or DUBS validation; no error margin is established.';
-  if(equipmentMode==='marv')$('method-result').textContent='MARV Velo Set weights are 3.5, 5, 7.5, 10, 16 and 32 oz. Each estimate uses the closest nominal Driveline mass (within 5 g) or linear interpolation between the two bracketing Driveline mass references for the same drill and mound baseline; values round to 0.1 mph. Roll-Ins are omitted. These cross-brand estimates are not MARV measurements, no MARV-specific readings validate them, and no error margin is established.';
+  if(equipmentMode==='marv')$('method-result').textContent='MARV Velo Set weights are 3.5, 5, 7.5, 10, 16 and 32 oz. Other drills use the nearest Driveline mass (within 5 g) or linear interpolation between bracketing weights. Roll-Ins use available 225 g, 450 g, and 1,000 g readings: red uses nearest 225 g, orange uses 450 g, yellow interpolates 225–450 g, and dark gray interpolates 450–1,000 g. Values round to 0.1 mph. These cross-brand estimates are not MARV measurements, no MARV-specific readings validate them, and no error margin is established.';
   $('source-files').replaceChildren(...result.sources.map(source => el('li', '', source)));
   $('decrease').disabled = valid && result.mound_mph <= 70;
   $('increase').disabled = valid && result.mound_mph >= 86;
