@@ -398,7 +398,7 @@ function resetBaseballDraft(){
 }
 function chosenBaseballSessions(){return baseballRecords.filter(r=>r.player===$('baseball-player').value).sort((a,b)=>b.session_date.localeCompare(a.session_date)||String(b.created_at??'').localeCompare(String(a.created_at??'')));}
 
-  if(baseballDirty&&!window.confirm('Replace the unsaved baseball session with this saved session?'))return;
+  function editBaseballRecord(r){if(baseballDirty&&!window.confirm('Replace the unsaved baseball session with this saved session?'))return;
   baseballEditingId=r.id;$('baseball-date').value=r.session_date;$('baseball-context').value=r.context;showBaseballDistance(r.distance_ft);$('baseball-radar-note').textContent=r.device?'Radar: '+r.device+' · saved session':'Radar was not recorded for this saved session.';$('baseball-notes').value=r.notes;r.throws.forEach((value,i)=>$('baseball-throw-'+(i+1)).value=value??'');$('baseball-error').hidden=true;$('baseball-cancel-edit').hidden=false;$('baseball-mode-label').textContent='EDITING SAVED BASEBALL SESSION';$('baseball-save').replaceChildren(document.createTextNode('Update baseball session '),el('span','','✓'));baseballDirty=false;renderBaseballStats();$('baseball-throw-1').focus();
 }
 function renderBaseballHistory(){renderBaseballTeamAverage();
