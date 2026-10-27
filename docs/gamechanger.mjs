@@ -34,12 +34,12 @@ const deltaText=(player,bench,type)=>{
  if(type==='mph')return sign+abs.toFixed(1)+' mph';
  return sign+(Number.isInteger(abs)?abs.toLocaleString():abs.toFixed(1));
 };
-export function startGameChanger({element:$}){
+export function startGameChanger({element:$,onPlayerAuthorized=()=>{}}){
  const seasonSelect=$('gamechanger-season'),playerSelect=$('gamechanger-player');
  const statSelect=$('gamechanger-stat'),focus=$('gamechanger-focus');
  const message=$('gamechanger-message'),details=$('gamechanger-player-stats'),summary=$('gamechanger-summary'),comparison=$('gamechanger-comparison'),updated=$('gamechanger-updated');
  const accessDialog=$('gamechanger-access-dialog'),accessForm=$('gamechanger-access-form'),accessInput=$('gamechanger-access-password'),accessError=$('gamechanger-access-error');
- let pendingPlayer=null,authorizedPlayerKey='';
+ let pendingPlayer=null,authorizedPlayerKey='',pendingSyncName='';
  const buttons=[...document.querySelectorAll('[data-gamechanger-group]')];for(const button of buttons)if(button.dataset.gamechangerGroup==='fielding')button.hidden=true;let seasons=[],group='batting';
  function playerKey(season,player){return season&&player?season.id+'|'+player.id:'';}
  function hidePlayerStats(){details.hidden=true;summary.replaceChildren();focus.replaceChildren();comparison.replaceChildren();message.hidden=false;message.textContent='Choose your player and enter your password to view their stats.';}
@@ -121,7 +121,7 @@ export function startGameChanger({element:$}){
   if(!visible){const row=document.createElement('tr'),cell=document.createElement('td');cell.colSpan=5;cell.textContent='No '+config.label.toLowerCase()+' stats were recorded for this player in this export.';row.append(cell);body.append(row);}
   table.append(body);wrap.append(table);comparison.append(wrap);
  }
- function fillPlayers(keep=true){
+ function syncPlayer(name){pendingSyncName=String(name??'').trim();if(!pendingSyncName||!seasons.length)return;const season=seasons.find(s=>s.id===seasonSelect.value),player=season?.players.find(p=>p.name===pendingSyncName||p.name.split(/\s+/)[0]===pendingSyncName);if(!player)return;playerSelect.value=player.id;playerSelect.dispatchEvent(new Event('change',{bubbles:true}));} function fillPlayers(keep=true){
   const season=seasons.find(s=>s.id===seasonSelect.value),previous=keep?playerSelect.value:'';
   playerSelect.replaceChildren(new Option('Choose a player',''));
   for(const player of season?.players??[])if(ROSTER.has(player.name))playerSelect.add(new Option('#'+player.number+' · '+player.name,player.id));
@@ -148,14 +148,14 @@ export function startGameChanger({element:$}){
   let valid=false;try{valid=await verifyPlayerPassword(candidate.player,accessInput.value);}catch{}
   submit.disabled=false;
   if(!valid){accessError.textContent='That password does not match. Try again.';accessError.hidden=false;accessInput.value='';accessInput.focus();return;}
-  authorizedPlayerKey=playerKey(candidate.season,candidate.player);playerSelect.value=candidate.player.id;pendingPlayer=null;accessInput.value='';accessDialog.close();draw();
+  authorizedPlayerKey=playerKey(candidate.season,candidate.player);playerSelect.value=candidate.player.id;pendingPlayer=null;accessInput.value='';accessDialog.close();draw();onPlayerAuthorized(candidate.player.name.split(/\s+/)[0]);
  });
  $('gamechanger-access-cancel').addEventListener('click',()=>{pendingPlayer=null;accessInput.value='';accessDialog.close();hidePlayerStats();});
  accessDialog.addEventListener('cancel',event=>{event.preventDefault();pendingPlayer=null;accessInput.value='';accessDialog.close();hidePlayerStats();});
   Promise.all([fetch('./gamechanger-stats.json?v=gamechanger-metrics-20261027').then(response=>response.json()),fetch('./gamechanger-advanced-stats.json?v=gamechanger-metrics-20261027').then(response=>response.json())]).then(([data,advanced])=>{
   seasons=data.seasons??[];for(const season of seasons){const extra=advanced[season.id]??{};for(const player of season.players){Object.assign(player.batting,extra.batting?.players?.[player.number]??{});Object.assign(player.pitching,extra.pitching?.players?.[player.number]??{});const pa=Number(player.batting.PA),so=Number(player.batting.SO);player.batting['K%']=pa>0&&Number.isFinite(so)?so/pa*100:null;}for(const key of ['BB/K','BABIP','BA/RISP'])if(extra.batting?.team?.[key]!==undefined)season.benchmarks.batting[key]={value:extra.batting.team[key],kind:'team rate',eligible:14};const pa=Number(season.benchmarks.batting.PA?.value),so=Number(season.benchmarks.batting.SO?.value);if(pa>0&&Number.isFinite(so))season.benchmarks.batting['K%']={value:so/pa*100,kind:'team rate',eligible:14};if(extra.pitching?.team?.['S%']!==undefined)season.benchmarks.pitching['S%']={value:extra.pitching.team['S%'],kind:'team rate',eligible:14};}seasonSelect.replaceChildren(...seasons.map(s=>new Option(s.label,s.id)));
   if(data.last_updated){const date=new Date(data.last_updated+'T12:00:00Z');updated.textContent='LAST UPDATED · '+new Intl.DateTimeFormat('en-CA',{dateStyle:'long',timeZone:'UTC'}).format(date);}
-  seasonSelect.value=seasons.find(s=>s.id==='16U')?.id??seasons[0]?.id??'';fillPlayers(false);
+  seasonSelect.value=seasons.find(s=>s.id==='16U')?.id??seasons[0]?.id??'';fillPlayers(false);if(pendingSyncName)syncPlayer(pendingSyncName);
   hidePlayerStats();
- }).catch(()=>{message.hidden=false;message.textContent='GameChanger stats could not be loaded. Please refresh the page.';});
+ }).catch(()=>{message.hidden=false;message.textContent='GameChanger stats could not be loaded. Please refresh the page.';});return {syncPlayer};
 }
