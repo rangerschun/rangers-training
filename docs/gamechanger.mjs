@@ -1,13 +1,13 @@
 const ROSTER=new Set(['Rory Chi','Ambrose Chun','Michael Kim','Max Hall','Carson Pavao','Jayden Salas-Smith','Andre Stajan','Aidan Scane','Joseph Mestre','Nathan Bussey','Raiden Huether','Josh Mosakos','Walker Thompson','Carter Nelson']);const GROUPS={
  batting:{label:'Batting',stats:[
-  ['OPS','On-base plus slugging','ops',1],['AVG','Batting average','avg',1],['OBP','On-base percentage','avg',1],['SLG','Slugging percentage','avg',1],
+  ['OPS','OPS','ops',1],['AVG','AVG','avg',1],['OBP','OBP','avg',1],['SLG','SLG','avg',1],
   ['H','Hits','int',1],['1B','Singles','int',1],['2B','Doubles','int',1],['3B','Triples','int',1],['XBH','Extra-base hits','int',1],['HR','Home runs','int',1],
-  ['RBI','Runs batted in','int',1],['SB','Stolen bases','int',1],['BB/K','Walk-to-strikeout ratio','ratio',1],['BABIP','Batting average on balls in play','avg',1],['BA/RISP','Batting average with runners in scoring position','avg',1],['K%','Strikeout percentage (per PA)','pct100',-1],
+  ['RBI','Runs batted in','int',1],['SB','Stolen bases','int',1],['BB/K','BB/K','ratio',1],['BABIP','BABIP','avg',1],['BA/RISP','BA/RISP','avg',1],['K%','K%','pct100',-1],
  ]},
  pitching:{label:'Pitching',stats:[
   
-  ['WHIP','Walks + hits per inning','whip',-1],
-  ['SO','Strikeouts','int',1],['BB','Walks','int',-1],['S%','Strikes thrown %','pct100',1],
+  ['WHIP','WHIP','whip',-1],
+  ['SO','SO','int',1],['BB','BB','int',-1],['S%','S%','pct100',1],
  ]},
  fielding:{label:'Fielding',stats:[
   ['TC','Total chances','int',0],['A','Assists','int',0],['PO','Putouts','int',0],['FPCT','Fielding percentage','fpct',1],['E','Errors','int',-1],['DP','Double plays','int',1],['TP','Triple plays','int',1]
@@ -65,7 +65,7 @@ export function startGameChanger({element:$}){
   }else note.textContent='No team benchmark';
   card.append(name,main,note);return card;
  }
- function rosterRank(season,player,group,key,type,direction){const current=player[group]?.[key];if(current===null||current===undefined||current===''||!Number.isFinite(Number(current)))return null;const values=[];for(const name of ROSTER){const rosterPlayer=season.players.find(candidate=>candidate.name===name),value=rosterPlayer?.[group]?.[key];if(value===null||value===undefined||value===''||!Number.isFinite(Number(value))){if(type==='int')values.push(0);continue;}values.push(Number(value));}const ahead=values.filter(value=>direction<0?value<Number(current):value>Number(current)).length;const rank=ahead+1;return rank<=6?rank:null;} function draw(){
+ function rosterRank(season,player,group,key,type,direction){const current=player[group]?.[key];if(current===null||current===undefined||current===''||!Number.isFinite(Number(current))||Number(current)===0)return null;const values=[];for(const name of ROSTER){const rosterPlayer=season.players.find(candidate=>candidate.name===name),value=rosterPlayer?.[group]?.[key];if(value===null||value===undefined||value===''||!Number.isFinite(Number(value))){if(type==='int')values.push(0);continue;}values.push(Number(value));}const ahead=values.filter(value=>direction<0?value<Number(current):value>Number(current)).length;const rank=ahead+1;return rank<=6?rank:null;} function draw(){
   const season=seasons.find(s=>s.id===seasonSelect.value),player=season?.players.find(p=>p.id===playerSelect.value);
   if(player&&authorizedPlayerKey!==playerKey(season,player)){hidePlayerStats();return;}
   details.hidden=!player;
