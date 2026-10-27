@@ -1,4 +1,4 @@
-const GROUPS={
+const ROSTER=new Set(['Rory Chi','Ambrose Chun','Michael Kim','Max Hall','Carson Pavao','Jayden Salas-Smith','Andre Stajan','Aidan Scane','Joseph Mestre','Nathan Bussey','Raiden Huether','Josh Mosakos','Walker Thompson','Carter Nelson']);const GROUPS={
  batting:{label:'Batting',stats:[
   ['PA','Plate appearances','int',0],
   ['AVG','Batting average','avg',1],['OBP','On-base percentage','avg',1],['OPS','On-base plus slugging','ops',1],['SLG','Slugging percentage','avg',1],
@@ -125,7 +125,7 @@ export function startGameChanger({element:$}){
  function fillPlayers(keep=true){
   const season=seasons.find(s=>s.id===seasonSelect.value),previous=keep?playerSelect.value:'';
   playerSelect.replaceChildren(new Option('Choose a player',''));
-  for(const player of season?.players??[])playerSelect.add(new Option('#'+player.number+' · '+player.name,player.id));
+  for(const player of season?.players??[])if(ROSTER.has(player.name))playerSelect.add(new Option('#'+player.number+' · '+player.name,player.id));
   playerSelect.value=season?.players.some(p=>p.id===previous)&&authorizedPlayerKey===playerKey(season,season.players.find(p=>p.id===previous))?previous:'';draw();
  }
  function setGroup(next){
