@@ -1,7 +1,7 @@
 import {startTargetBaseline} from './target-baseline.mjs?v=velocity-baseline-fallback-20261027';
 import {startVisionVideos} from './vision-videos.mjs?v=schedule-auto-refresh-20261025';
 import { startConcentrationGrid } from './concentration-grid.mjs?v=concentration-marv-20261027';
-import { startGameChanger } from './gamechanger.mjs?v=marv-rollin-gc-zero-rank-copy-20261027';
+import { startGameChanger } from './gamechanger.mjs?v=rangers-player-sync-20261028';
 import {startCoachAccess} from './coach-access.mjs?v=rangers-organization-20261025';
 import {startDeviceMigration} from './device-migration-ui.mjs?v=rangers-organization-20261025';
 import {prepareDemoReset,runDemoReset} from './demo-reset.mjs?v=rangers-organization-20261025';
@@ -428,7 +428,7 @@ $('overspeed-player').addEventListener('change',()=>{$('overspeed-clear-entries'
 $('overspeed-clear-entries').addEventListener('click',()=>{const player=$('overspeed-player').value;if(!player)return;const count=overspeedLog.records().filter(r=>r.player===player).length+overspeedProtocol.records().filter(r=>r.player===player).length;if(!count){$('overspeed-announcement').textContent='No saved entries to clear.';return;}if(!window.confirm(`Clear all saved OverSpeed readings and workout progress for ${player}, and reset the current forms? Other players and trackers are kept.`))return;overspeedLog.clearPlayer(player);overspeedProtocol.clearPlayer(player);$('overspeed-announcement').textContent='OverSpeed entries cleared for the selected player.';});
 const pulseLog=startPulse({players:PLAYER_LABELS,scope:rosterHash.toString(16),element:$,download:downloadFile,onChange:(before,after)=>teamJournal?.record('pulse',before,after)});
 const visionVideos=startVisionVideos({element:$});
-const gameChanger=startGameChanger({element:$});
+const gameChanger=startGameChanger({element:$,onPlayerAuthorized:player=>tabPlayers?.setCurrent(player)});
 const concentrationGrid=startConcentrationGrid({element:$,players:PLAYER_LABELS,flow:workoutFlow,getDailyRecords:()=>teamJournal?.concentrationHistory()??[],readRemote:()=>teamJournal.readConcentrationSummary()});
 
 
@@ -441,7 +441,7 @@ const routeLabels = { workouts: 'WORKOUT LOG', throwing: 'THROWING ROUTINE',  ta
 function route() {
   const key = location.hash.slice(1);
   const view = Object.hasOwn(routeLabels, key) ? key : 'workouts';
-  tabPlayers.activate(view);
+  tabPlayers.activate(view);if(view==='gamechanger')gameChanger.syncPlayer(tabPlayers.current());
   playerAccess.activate(view);
   coachAccess.activate(view);
   for (const name of Object.keys(routeLabels)) {
