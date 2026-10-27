@@ -1,4 +1,4 @@
-import {visionDayNumber,visionNextChange} from './vision-videos.mjs?v=schedule-auto-refresh-20261025';
+import {visionDayNumber,visionNextChange} from './vision-videos.mjs?v=concentration-marv-20261027';
 /** Ascending-number challenge with completed times in the existing workout journal. */
 export function concentrationNumbers(random=Math.random){
   const values=Array.from({length:100},(_,i)=>i+1);
@@ -28,7 +28,8 @@ export function startConcentrationGrid({element,players=[],flow,readRemote,getDa
   let timer=null,player='',savedId=null,remoteSummary=null,refreshing=false,refreshVersion=0,dailyLocked=false,dailyDay=null,dailyPlayer='',dailyResetTimer=null;
   const make=(tag,className,text)=>{const node=document.createElement(tag);if(className)node.className=className;if(text!==undefined)node.textContent=text;return node;};
   const picker=element('concentration-player');const placeholder=make('option','','Choose a player');placeholder.value='';picker.replaceChildren(placeholder);for(const name of players){const option=make('option','',name);option.value=name;picker.append(option);}
-  function dailyUsage(){let history=[];try{history=getDailyRecords()??[];}catch{}return concentrationDailyUsage([...flow.records(),...history],player,calendarNow());}
+  function allRecords(){let history=[];try{history=getDailyRecords()??[];}catch{}const seen=new Set();return [...flow.records(),...history].filter(record=>{if(typeof record?.id!=='string')return true;if(seen.has(record.id))return false;seen.add(record.id);return true;});}
+  function dailyUsage(){return concentrationDailyUsage(allRecords(),player,calendarNow());}
   function refreshDaily(){
     const date=calendarNow(),quota=dailyUsage(),wasLocked=dailyLocked,priorDay=dailyDay,priorPlayer=dailyPlayer;
     dailyLocked=quota.remaining===0;dailyDay=quota.day;dailyPlayer=player;
@@ -41,10 +42,10 @@ export function startConcentrationGrid({element,players=[],flow,readRemote,getDa
     return quota;
   }
   function results(){
-    const all=concentrationResults(flow.records()),mine=concentrationResults(flow.records(),player),average=concentrationAverage(mine);
+    const savedRecords=allRecords(),all=concentrationResults(savedRecords),mine=concentrationResults(savedRecords,player),average=concentrationAverage(mine);
     const teamCount=remoteSummary?.session_count??all.length,teamAverage=remoteSummary?remoteSummary.average_ms:concentrationAverage(all);
     const chart=element('concentration-chart');chart.replaceChildren();
-    const data=[['Current time',mine[0]?.elapsed_ms??null,mine.length?'Latest completed grid':'Complete your first grid'],['Your average',average,`${mine.length} completed grids on this device`],['Team average',teamAverage,`${teamCount} completed grids · ${remoteSummary?'coach sheet':'this device only'}`]],max=Math.max(1,...data.map(d=>d[1]??0));
+    const data=[['Current time',mine[0]?.elapsed_ms??null,mine.length?'Latest completed grid':'Complete your first grid'],['Your average',average,`${mine.length} all-time completed grids on this device`],['Team average',teamAverage,`${teamCount} all-time completed grids · ${remoteSummary?'coach sheet':'this device only'}`]],max=Math.max(1,...data.map(d=>d[1]??0));
     data.forEach(([label,value,note],i)=>{const row=make('div','concentration-chart-row'),heading=make('div','concentration-chart-label');heading.append(make('strong','',label),make('span','',value===null?'—':concentrationTime(value)));const track=make('div','concentration-bar-track'),bar=make('div','concentration-bar concentration-bar-'+i);bar.style.height=value===null?'0%':Math.max(.5,value/max*100)+'%';track.setAttribute('aria-hidden','true');track.append(bar);row.append(heading,track,make('small','',note));chart.append(row);});
     const history=element('concentration-history');history.replaceChildren();if(!player||!mine.length)history.append(make('p','field-help','Complete a grid to start collecting your times.'));
     else{const list=make('ol','concentration-results');for(const result of mine)list.append(make('li','',`${result.session_date} · ${concentrationTime(result.elapsed_ms)}`));history.append(list);}
@@ -52,8 +53,8 @@ export function startConcentrationGrid({element,players=[],flow,readRemote,getDa
   }
   async function refreshTeam(){
     if(refreshing||!player||!readRemote)return;refreshing=true;const version=++refreshVersion;element('concentration-refresh').disabled=true;element('concentration-team-status').textContent='Refreshing team average…';
-    try{const summary=await readRemote();if(!summary||!Number.isInteger(summary.session_count)||summary.session_count<0||(summary.session_count>0&&(!Number.isFinite(summary.average_ms)||summary.average_ms<=0||summary.average_ms>86400000)))throw Error('Invalid team average');if(version!==refreshVersion)return;remoteSummary=summary;element('concentration-team-status').textContent='Team average uses completed grids received by the coach sheet across devices. Newly saved times may appear after syncing.';}
-    catch{if(version===refreshVersion){remoteSummary=null;element('concentration-team-status').textContent='Team connection unavailable. The team bar currently includes this device’s completed grids only. Personal times remain saved here.';}}
+    try{const summary=await readRemote();if(!summary||!Number.isInteger(summary.session_count)||summary.session_count<0||(summary.session_count>0&&(!Number.isFinite(summary.average_ms)||summary.average_ms<=0||summary.average_ms>86400000)))throw Error('Invalid team average');if(version!==refreshVersion)return;remoteSummary=summary;element('concentration-team-status').textContent='Team average uses all completed grids received by the coach sheet across devices. Newly saved times may appear after syncing.';}
+    catch{if(version===refreshVersion){remoteSummary=null;element('concentration-team-status').textContent='Team connection unavailable. The team bar currently includes all completed grids on this device only. Personal times remain saved here.';}}
     finally{refreshing=false;element('concentration-refresh').disabled=false;results();}
   }
   function saveTime(){
