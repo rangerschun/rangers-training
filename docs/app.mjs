@@ -1,4 +1,4 @@
-import {startTargetBaseline} from './target-baseline.mjs?v=schedule-auto-refresh-20261025';
+import {startTargetBaseline} from './target-baseline.mjs?v=velocity-baseline-fallback-20261027';
 import {startVisionVideos} from './vision-videos.mjs?v=schedule-auto-refresh-20261025';
 import { startConcentrationGrid } from './concentration-grid.mjs?v=concentration-marv-20261027';
 import {startCoachAccess} from './coach-access.mjs?v=rangers-organization-20261025';
@@ -8,7 +8,6 @@ import {isAxeWorkout} from './axe-progress.mjs?v=rangers-organization-20261025';
 import {startPlayerAccess} from './player-access.mjs?v=password-label-20261025';
 import {startAxePrograms} from './axe-program-ui.mjs?v=rangers-organization-20261025';
 import {startWorkoutSchedule} from './workout-schedule-ui.mjs?v=rangers-organization-20261025';
-import { startTeamSchedule } from './team-schedule-ui.mjs?v=calendar-location-20261025';
 import { installGoogleBridge } from './google-bridge.mjs?v=rangers-organization-20261025';
 import { startTabPlayers } from './tab-players.mjs?v=player-jersey-check-20261025';
 import { startThrowingCalendar } from './throwing-calendar-ui.mjs?v=throwing-save-close-20261025';
@@ -30,7 +29,6 @@ import { isWorkoutVideoUrl } from './library-tools.mjs?v=compact-workouts-202610
 
 const GOOGLE_BACKEND_CONFIG = {...{"url": "https://script.google.com/macros/s/AKfycby83qDRwh5DzSU-h-45CdqJBGbO8NcVzssZnTpore_FH8psVHYUtxRpEHIgiJISOISL0g/exec", "origin": "https://andrewschun.github.io"},origin:globalThis.location?.origin==='https://rangerschun.github.io'?'https://rangerschun.github.io':'https://andrewschun.github.io'};
 installGoogleBridge(GOOGLE_BACKEND_CONFIG);
-const TEAM_SCHEDULE_CONFIG = {remote:true,public_url:'https://script.google.com/macros/s/AKfycby83qDRwh5DzSU-h-45CdqJBGbO8NcVzssZnTpore_FH8psVHYUtxRpEHIgiJISOISL0g/exec',snapshot_url:'./team-schedule.json',cache_key:'rangers-team-schedule-v1',subscription_url:"https://ical-cdn.teamsnap.com/team_schedule/896a42c8-2cb3-4e91-a8af-a056eafd6026.ics"};
 const $ = id => document.getElementById(id);
 const names = Object.fromEntries(COLORS.map(color => [color, color[0].toUpperCase() + color.slice(1)]));
 const swatches = { green: '#00a768', blue: '#087ab9', red: '#df493d', orange: '#ef9c11', gray: '#7f858b' };
@@ -92,12 +90,15 @@ const workoutSchedule=startWorkoutSchedule({element:$,flow:workoutFlow});
 const throwingElement=id=>$(id.startsWith('workout-')?'throwing-'+id.slice(8):id.startsWith('library-')?'throwing-library-'+id.slice(8):id);
 const throwingFlow=startWorkoutFlow({players:PLAYER_LABELS,scope:rosterHash.toString(16),element:throwingElement,download:downloadFile,variant:'throwing',sharedStore:workoutFlow,onNavigate:goWorkoutPane});
 
-
 function displayBalls() {
-  return equipmentMode === 'marv' ? MARV_BALLS.map(ball=>({key:ball.model,label:`${ball.color} · ${ball.mass_oz} oz`,sublabel:'MARV · PROJECTED MPH',swatch:ball.swatch,filter:`${ball.color} · ${ball.mass_oz} oz`})) : equipmentMode === 'dubs'
-    ? DUBS_BALLS.map(ball => ({key:ball.model, label:`${ball.color} · ${ball.mass_g.toLocaleString()} g`, sublabel:ball.model==='DPB-150'?`${ball.model} · PROJECTION`:ball.model, swatch:ball.swatch, filter:`${ball.color} · ${ball.mass_g.toLocaleString()} g`}))
-    : COLORS.map(color => ({key:color, label:`${names[color]} · ${sourceMasses[color] === null ? 'mass unconfirmed' : sourceMasses[color].toLocaleString()+' g'}`, sublabel:'DRIVELINE SOURCE', swatch:swatches[color], filter:`${names[color]} · ${sourceMasses[color] === null ? 'mass ?' : sourceMasses[color].toLocaleString()+' g'}`}));
+  const withOz = grams => `${grams.toLocaleString()} g (${(grams/28.349523125).toFixed(1)} oz)`;
+  return equipmentMode === 'marv'
+    ? MARV_BALLS.map(ball => ({key:ball.model,label:`${ball.color} · ${ball.mass_oz} oz (${ball.mass_g.toFixed(1)} g)`,sublabel:'MARV · PROJECTED MPH',swatch:ball.swatch,filter:`${ball.color} · ${ball.mass_oz} oz (${ball.mass_g.toFixed(1)} g)`}))
+    : equipmentMode === 'dubs'
+      ? DUBS_BALLS.map(ball => ({key:ball.model,label:`${ball.color} · ${withOz(ball.mass_g)}`,sublabel:ball.model==='DPB-150'?`${ball.model} · PROJECTION`:ball.model,swatch:ball.swatch,filter:`${ball.color} · ${withOz(ball.mass_g)}`}))
+      : COLORS.map(color => {const grams=sourceMasses[color];const weight=grams===null?'mass unconfirmed':withOz(grams);return {key:color,label:`${names[color]} · ${weight}`,sublabel:'DRIVELINE SOURCE',swatch:swatches[color],filter:`${names[color]} · ${grams===null?'mass ?':withOz(grams)}`};});
 }
+
 function drawFilters() {
   $('ball-filters').replaceChildren();
   for (const ball of [{key:'all',filter:'All balls'}, ...displayBalls()]) {
