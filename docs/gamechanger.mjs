@@ -27,7 +27,7 @@ const deltaText=(player,bench,type)=>{
  if(!Number.isFinite(Number(player))||!Number.isFinite(Number(bench)))return 'No team benchmark';
  const d=Number(player)-Number(bench);if(Math.abs(d)<0.0005)return 'At team average';
  const sign=d>0?'+':'−',abs=Math.abs(d);
- if(['avg','fpct','pct'].includes(type)||type==='pct100')return sign+(abs*100).toFixed(1)+' percentage points';
+ if(['avg','fpct'].includes(type))return sign+abs.toFixed(3);if(['pct','pct100'].includes(type))return sign+abs.toFixed(1);
  if(type==='ops'||type==='era')return sign+abs.toFixed(3);
  if(type==='whip'||type==='ratio')return sign+abs.toFixed(2);
  if(type==='ip')return sign+abs.toFixed(2)+' IP';
