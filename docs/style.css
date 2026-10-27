@@ -244,3 +244,6 @@ select option,select optgroup{background-color:var(--dropdown-bg)}
 /* Larger drill names in Velocity Targets. */
 .board-header span:not(:first-child){font-size:12px;font-weight:700}
 @media(max-width:760px){.board-header span:not(:first-child){font-size:10px}}
+
+/* Completed Concentration Grid numbers use dark green text without a success tile highlight. */
+.concentration-grid .concentration-number.concentration-found { color: #006400 !important; background: transparent !important; border-color: transparent !important; box-shadow: none !important; outline: none !important; opacity: 1 !important; }
