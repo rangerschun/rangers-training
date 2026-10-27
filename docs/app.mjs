@@ -1,7 +1,7 @@
 import {startTargetBaseline} from './target-baseline.mjs?v=velocity-baseline-fallback-20261027';
 import {startVisionVideos} from './vision-videos.mjs?v=schedule-auto-refresh-20261025';
 import { startConcentrationGrid } from './concentration-grid.mjs?v=concentration-marv-20261027';
-import { startGameChanger } from './gamechanger.mjs?v=gamechanger-pitching-metrics-20261027';
+import { startGameChanger } from './gamechanger.mjs?v=marv-rollin-gc-zero-rank-20261027';
 import {startCoachAccess} from './coach-access.mjs?v=rangers-organization-20261025';
 import {startDeviceMigration} from './device-migration-ui.mjs?v=rangers-organization-20261025';
 import {prepareDemoReset,runDemoReset} from './demo-reset.mjs?v=rangers-organization-20261025';
@@ -24,7 +24,7 @@ import { workoutActivity, workoutActivityCsv, workoutWeek } from './accountabili
 import { startWorkoutAccountability } from './accountability-ui.mjs?v=compact-workouts-20261025';
 import { journalChanges, journalToCsv, validateJournalEvent } from './journal.mjs?v=schedule-auto-refresh-20261025';
 import { startTeamJournal } from './journal-ui.mjs?v=schedule-auto-refresh-20261025';
-import { DRILLS, COLORS, getTargets, getDubsReferences, DUBS_BALLS, getMarvReferences, MARV_BALLS, summarizeThrows, BLAST_METRICS, validateBlastRecord, summarizeBlast, upsertBlastRecord, filterBlastRecords, blastDailyProgress, blastRecordsToCsv, WORKOUT_CATEGORIES, validateWorkout, upsertWorkout, summarizeWorkouts, workoutsToCsv, BASEBALL_CONTEXTS, BASEBALL_MOUND_DISTANCE_FT, BASEBALL_RADAR_DEVICE, validateBaseballSession, upsertBaseballSession, baseballSessionsToCsv } from './engine.mjs?v=concentration-marv-20261027';
+import { DRILLS, COLORS, getTargets, getDubsReferences, DUBS_BALLS, getMarvReferences, MARV_BALLS, summarizeThrows, BLAST_METRICS, validateBlastRecord, summarizeBlast, upsertBlastRecord, filterBlastRecords, blastDailyProgress, blastRecordsToCsv, WORKOUT_CATEGORIES, validateWorkout, upsertWorkout, summarizeWorkouts, workoutsToCsv, BASEBALL_CONTEXTS, BASEBALL_MOUND_DISTANCE_FT, BASEBALL_RADAR_DEVICE, validateBaseballSession, upsertBaseballSession, baseballSessionsToCsv } from './engine.mjs?v=marv-rollin-gc-zero-rank-20261027';
 import { WORKOUT_LIBRARY } from './library.mjs?v=schedule-auto-refresh-20261025';
 import { isWorkoutVideoUrl } from './library-tools.mjs?v=compact-workouts-20261025';
 
