@@ -4,7 +4,7 @@
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#111b60"><meta name="description" content="Etobicoke Rangers 16U development workspace. Explore Driveline and DUBS references, labeled interpolation, Blast Motion, post-throwing Pulse data, and player workout journals.">
 <title>Rangers | Workout log</title>
-<link rel="icon" href="./favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="./style.css?v=concentration-marv-20261027">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="./style.css?v=concentration-marv-20261027"><link rel="stylesheet" href="./gamechanger.css?v=gamechanger-20261027">
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -22,6 +22,7 @@
     <a href="#axe" data-nav="axe" class="nav-link"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 19 7-7m-9 9 2-2m7-7 7-9 2 2-9 7M8 16l-2-2"/></svg>Axe Bats</a>
     <a href="#pulse" data-nav="pulse" class="nav-link"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12h5l3-8 4 16 3-8h5"/></svg>Driveline Pulse</a>
     <a href="#concentration" data-nav="concentration" class="nav-link"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h18v18H3zM9 3v18m6-18v18M3 9h18M3 15h18"/></svg>Vision Training</a>
+    <a href="#gamechanger" data-nav="gamechanger" class="nav-link"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5m0 14h16M8 15l3-4 3 2 5-7"/></svg>GameChanger</a>
     <a href="#approach" data-nav="approach" class="nav-link"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"/></svg>Training approach</a>
     <a href="#coach" data-nav="coach" class="nav-link"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v14H4zM8 3v6m8-6v6M4 11h16"/></svg>Coach desk</a>
   </nav>
@@ -308,6 +309,16 @@
       </section>
 
     </section>
+    <section id="view-gamechanger" class="view" aria-labelledby="gamechanger-title" hidden>
+      <div class="page-heading simple-heading gamechanger-heading"><div><div class="eyebrow">GAMECHANGER / SEASON STATS</div><h1 id="gamechanger-title">Player stats</h1><p>Choose a season and player to compare key batting, pitching, and fielding numbers with the team benchmark.</p></div><img class="page-team-logo" src="./assets/rangers-logo.jpeg" alt="Etobicoke Rangers Baseball Club" width="128" height="128"></div>
+      <div class="gc-controls"><label for="gamechanger-season">Season<select id="gamechanger-season"><option value="16U">16U · Summer 2027</option><option value="15U">15U · Summer 2026</option></select></label><label for="gamechanger-player">Player<select id="gamechanger-player"><option value="">Choose a player</option></select></label></div>
+      <p id="gamechanger-message" class="gc-message" role="status">Loading GameChanger stats…</p>
+      <section id="gamechanger-player-stats" class="gc-player-stats" hidden aria-label="Selected player stats">
+        <div id="gamechanger-summary" class="gc-summary"></div>
+        <div class="gc-panel"><div class="gc-group-switch" role="group" aria-label="Choose stats category"><button type="button" data-gamechanger-group="batting" aria-pressed="true" class="selected">Batting</button><button type="button" data-gamechanger-group="pitching" aria-pressed="false">Pitching</button><button type="button" data-gamechanger-group="fielding" aria-pressed="false">Fielding</button></div><div class="gc-focus-layout"><label for="gamechanger-stat">Statistic to compare<select id="gamechanger-stat"><option value="">Choose a statistic</option></select></label><div id="gamechanger-focus" aria-live="polite"></div></div><div id="gamechanger-comparison"></div></div>
+      </section>
+      <details class="source-details"><summary>Data source & comparison method <span>+</span></summary><div><p>Imported from the coach-provided GameChanger exports for 15U Summer 2026 and 16U Summer 2027. Rate stats use the exported team rate. Counting stats compare the selected player’s season totals with the average per player who recorded stats in that category; pitchers and fielders use their own participation groups. Playing time differs.</p><p>This site is hosted as a static page. Player selections control what the page displays; the underlying stats file is available to anyone who can access the site.</p></div></details>
+    </section>
     <section id="view-approach" class="view" aria-labelledby="approach-title" hidden>
       <div class="page-heading simple-heading"><div><div class="eyebrow">THE SYSTEM BEHIND THE SESSION</div><h1 id="approach-title">Training approach</h1><p>A shared approach. An individual development path.</p></div><img class="page-team-logo" src="./assets/rangers-logo.jpeg" alt="Etobicoke Rangers Baseball Club" width="128" height="128"></div>
       <div class="development-loop"><span>ASSESS</span><b>→</b><span>TRAIN</span><b>→</b><span>REASSESS</span><b>↗</b></div>
@@ -342,5 +353,5 @@
 <dialog id="player-access-dialog" class="player-access-dialog" aria-labelledby="player-access-title" aria-describedby="player-access-help"><form id="player-access-form"><div class="eyebrow">PLAYER CHECK</div><h2 id="player-access-title">Continue as <span id="player-access-name"></span></h2><p id="player-access-help">Enter your password to continue.</p><label for="player-access-code">Password<input id="player-access-code" type="password" inputmode="numeric" autocomplete="off" maxlength="4" required></label><p id="player-access-error" class="form-error" role="alert" hidden></p><div class="player-access-actions"><button id="player-access-cancel" type="button" class="secondary-button">Cancel</button><button id="player-access-submit" type="submit" class="primary-button">Continue</button></div></form></dialog>
 <dialog id="method-dialog" aria-labelledby="method-title"><div class="dialog-heading"><span class="eyebrow">KNOW THE SOURCE</span><button class="close-dialog" type="button" aria-label="Close data information">×</button></div><h2 id="method-title">A reference, with the<br>details kept intact.</h2><div class="method-points"><p><strong>Observed · whole mph</strong>Inputs from 70 through 86 mph show the exact displayed values transcribed from your 17 supplied calculator screenshots.</p><p><strong>Interpolated · decimal mph</strong>Within that range, decimal inputs use a straight-line estimate between neighboring screenshots, rounded to one decimal. This is an estimate, not the original Driveline formula.</p><p><strong>Exact source coverage: 70–86 mph</strong>The previous 80–86 mph projections have been replaced by screenshot observations. Inputs outside this range receive no targets. The original calculator formula has not been reconstructed.</p><p><strong>Colors and blanks matter</strong>Every original ball color, drill label and blank is retained in Driveline view. The separate DUBS 150 g projections do not replace any screenshot observation.</p><p><strong>Equipment stays specific</strong>These are Driveline reference observations. DUBS view copies Driveline references for 100, 225, 350, 450, and 1,000 g nominal matches. These are not validated DUBS output targets. Your supplied chart identifies orange as 350 g. The dark green DUBS 150 g row has four mass-interpolated projections: 60% of the gray 100 g reference plus 40% of the red 225 g reference. Roll-Ins are not projected. No yellow 150 g source readings or measured DUBS readings validate these projections.</p></div><button class="primary-button close-dialog" type="button">Back to the targets <span>→</span></button></dialog>
 <noscript><div class="noscript">Enable JavaScript to calculate targets. Blast entry requires JavaScript; PlyoCare throw entry remains on hold.</div></noscript>
-<script type="module" src="./app.mjs?v=concentration-marv-20261027"></script>
+<script type="module" src="./app.mjs?v=gamechanger-20261027"></script>
 </body></html>
