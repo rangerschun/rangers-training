@@ -247,3 +247,11 @@ select option,select optgroup{background-color:var(--dropdown-bg)}
 
 /* Completed Concentration Grid numbers use dark green text without a success tile highlight. */
 .concentration-grid .concentration-number.concentration-found { color: #006400 !important; background: transparent !important; border-color: transparent !important; box-shadow: none !important; outline: none !important; opacity: 1 !important; }
+
+/* Show the complete Overspeed plan in three columns on desktop. */
+.os-session-drills{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:start;gap:16px;margin-top:20px}
+.os-session-drills>*{min-width:0}
+@media(max-width:980px){.os-session-drills{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:650px){.os-session-drills{grid-template-columns:1fr}}
+/* Give every MARV target row a subtle background that matches its ball. */
+.ball-row{background:color-mix(in srgb,var(--ball-color) 10%,#fff)}
