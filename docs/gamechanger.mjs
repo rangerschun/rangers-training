@@ -116,7 +116,7 @@ export function startGameChanger({element:$,onPlayerAuthorized=()=>{}}){
    const kind=document.createElement('small');kind.className='gc-benchmark-kind';kind.textContent=bench?.kind==='team rate'?'Team rate':bench?.kind==='avg per pitcher'?'Pitcher average':'Player average';team.append(document.createElement('br'),kind);
    const delta=document.createElement('td');delta.textContent=deltaText(value,bench?.value,type);
    if(direction!==0&&Number.isFinite(Number(value))&&Number.isFinite(Number(bench?.value))){const d=(Number(value)-Number(bench.value))*direction;delta.className=d>=0?'gc-positive':'gc-negative';}else delta.className='gc-neutral';
-   const rank=document.createElement('td'),rankNumber=rosterRank(season,player,group,key,type,direction);rank.textContent=rankNumber?'#'+rankNumber:'';row.append(name,personal,team,delta,rank);body.append(row);
+   const rank=document.createElement('td'),rankNumber=rosterRank(season,player,group,key,type,direction);rank.textContent=['avg','ops','fpct','pct','pct100','whip','ratio','era'].includes(type)&&rankNumber?'#'+rankNumber:'';row.append(name,personal,team,delta,rank);body.append(row);
   }
   if(!visible){const row=document.createElement('tr'),cell=document.createElement('td');cell.colSpan=5;cell.textContent='No '+config.label.toLowerCase()+' stats were recorded for this player in this export.';row.append(cell);body.append(row);}
   table.append(body);wrap.append(table);comparison.append(wrap);
