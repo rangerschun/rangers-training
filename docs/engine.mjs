@@ -155,9 +155,34 @@ export const MARV_BALLS=Object.freeze([
  {model:'MARV-5',mass_oz:5,color:'White',swatch:'#f7f7f2'},
  {model:'MARV-3.5',mass_oz:3.5,color:'Light blue',swatch:'#78c6e9'},
 ].map(ball=>Object.freeze({...ball,mass_g:roundToTenth(ball.mass_oz*28.349523125)})));
+const MARV_PROJECTION_ANCHORS=Object.freeze([
+ {ball_color:'gray',mass_g:100},{ball_color:'red',mass_g:225},{ball_color:'orange',mass_g:350},{ball_color:'blue',mass_g:450},{ball_color:'green',mass_g:1000},
+]);
+function projectMarvBall(original,ball,drill){
+ if(drill==='Roll-Ins')return {ball_model:ball.model,ball_color:ball.color,mass_oz:ball.mass_oz,mass_g:ball.mass_g,drill,target_mph:null,status:'not_projected',application_status:'unvalidated_marv_projection',sources:[],observations:[]};
+ const nearest=MARV_PROJECTION_ANCHORS.reduce((best,item)=>Math.abs(item.mass_g-ball.mass_g)<Math.abs(best.mass_g-ball.mass_g)?item:best,MARV_PROJECTION_ANCHORS[0]);
+ let basis;
+ if(Math.abs(nearest.mass_g-ball.mass_g)<=5)basis=[{...nearest,coefficient:1}];
+ else{
+  const lower=MARV_PROJECTION_ANCHORS.filter(item=>item.mass_g<ball.mass_g).at(-1),upper=MARV_PROJECTION_ANCHORS.find(item=>item.mass_g>ball.mass_g);
+  if(!lower||!upper)return {ball_model:ball.model,ball_color:ball.color,mass_oz:ball.mass_oz,mass_g:ball.mass_g,drill,target_mph:null,status:'projection_unavailable',application_status:'unvalidated_marv_projection',sources:[],observations:[]};
+  const upperWeight=(ball.mass_g-lower.mass_g)/(upper.mass_g-lower.mass_g);
+  basis=[{...lower,coefficient:1-upperWeight},{...upper,coefficient:upperWeight}];
+ }
+ const weighted=basis.map(anchor=>({...anchor,source:original.cells.find(cell=>cell.ball_color===anchor.ball_color&&cell.drill===drill)}));
+ const sources=[...new Set(weighted.flatMap(item=>item.source?.sources??[]))];
+ const formula=basis.length===1
+  ? `MARV ${ball.mass_oz} oz (${ball.mass_g} g) uses the nearest Driveline ${basis[0].ball_color} ${basis[0].mass_g} g reference`
+  : basis.map(item=>`${item.coefficient.toFixed(3)} × Driveline ${item.ball_color} ${item.mass_g} g`).join(' + ');
+ const projection={method:basis.length===1?'nearest_nominal_mass_reference':'linear_nominal_mass_interpolation',target_mass_g:ball.mass_g,formula,baseline_method:original.status,basis:weighted.map(({source,...item})=>({...item,observations:source?.observations??[]})),validation:'not_validated_for_marv'};
+ if(weighted.some(item=>!item.source||item.source.target_mph===null))return {ball_model:ball.model,ball_color:ball.color,mass_oz:ball.mass_oz,mass_g:ball.mass_g,drill,target_mph:null,status:'projection_unavailable',application_status:'unvalidated_marv_projection',sources,observations:[],projection};
+ const unrounded_mph=weighted.reduce((sum,item)=>sum+item.coefficient*item.source.target_mph,0);
+ return {ball_model:ball.model,ball_color:ball.color,mass_oz:ball.mass_oz,mass_g:ball.mass_g,drill,target_mph:roundToTenth(unrounded_mph),status:'projected_mass_interpolation',application_status:'unvalidated_marv_projection',source_color:weighted.map(item=>item.ball_color).join('+'),sources,observations:[],projection:{...projection,unrounded_mph}};
+}
 export function getMarvReferences(velocity,rows){
  const original=getTargets(velocity,rows);
- return {...original,sources:[],application_status:'marv_targets_not_supplied',cells:original.cells.length?MARV_BALLS.flatMap(ball=>DRILLS.map(drill=>({ball_model:ball.model,ball_color:ball.color,mass_oz:ball.mass_oz,mass_g:ball.mass_g,drill,target_mph:null,status:'reference_unavailable',application_status:'marv_targets_not_supplied',sources:[],observations:[]}))):[],message:'MARV weights and colours only. No MARV velocity targets have been supplied.'};
+ const cells=original.cells.length?MARV_BALLS.flatMap(ball=>DRILLS.map(drill=>projectMarvBall(original,ball,drill))):[];
+ return {...original,cells,application_status:'unvalidated_marv_projection',message:'MARV values are estimates transferred from Driveline references by nominal ball mass, rounded to 0.1 mph. Roll-Ins are omitted. No MARV-specific readings validate these cross-brand estimates; no error margin is established.'};
 }
 
 /** Blast metric bounds validate units, not player performance or age norms. */
