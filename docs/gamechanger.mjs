@@ -1,6 +1,6 @@
 const GROUPS={
  batting:{label:'Batting',stats:[
-  ['GP','Games played','int',0],['PA','Plate appearances','int',0],['AB','At-bats','int',0],
+  ['PA','Plate appearances','int',0],
   ['AVG','Batting average','avg',1],['OBP','On-base percentage','avg',1],['OPS','On-base plus slugging','ops',1],['SLG','Slugging percentage','avg',1],
   ['H','Hits','int',1],['1B','Singles','int',1],['2B','Doubles','int',1],['3B','Triples','int',1],['XBH','Extra-base hits','int',1],['HR','Home runs','int',1],
   ['RBI','Runs batted in','int',1],['R','Runs scored','int',1],['BB','Walks','int',1],['SO','Strikeouts','int',-1],['SB','Stolen bases','int',1],['SB%','Stolen-base percentage','pct',1]
@@ -38,8 +38,21 @@ const deltaText=(player,bench,type)=>{
 export function startGameChanger({element:$}){
  const seasonSelect=$('gamechanger-season'),playerSelect=$('gamechanger-player');
  const statSelect=$('gamechanger-stat'),focus=$('gamechanger-focus');
- const message=$('gamechanger-message'),details=$('gamechanger-player-stats'),summary=$('gamechanger-summary'),comparison=$('gamechanger-comparison');
+ const message=$('gamechanger-message'),details=$('gamechanger-player-stats'),summary=$('gamechanger-summary'),comparison=$('gamechanger-comparison'),updated=$('gamechanger-updated');
+ const accessDialog=$('gamechanger-access-dialog'),accessForm=$('gamechanger-access-form'),accessInput=$('gamechanger-access-password'),accessError=$('gamechanger-access-error');
+ let pendingPlayer=null,authorizedPlayerKey='';
  const buttons=[...document.querySelectorAll('[data-gamechanger-group]')];let seasons=[],group='batting';
+ function playerKey(season,player){return season&&player?season.id+'|'+player.id:'';}
+ function hidePlayerStats(){details.hidden=true;summary.replaceChildren();focus.replaceChildren();comparison.replaceChildren();message.hidden=false;message.textContent='Choose your player and enter your password to view their stats.';}
+ function requestPlayer(season,player){pendingPlayer={season,player};accessInput.value='';accessError.hidden=true;accessError.textContent='';$('gamechanger-access-name').textContent=player.name;if(!accessDialog.open)accessDialog.showModal();accessInput.focus();}
+ async function verifyPlayerPassword(player,password){
+  const code=String(password??'').trim().replace(/^#/,'');
+  if(!/^\d{1,3}$/.test(code)||!player.password_hash||!globalThis.crypto?.subtle)return false;
+  const bytes=new TextEncoder().encode('rangers-jersey-v1\0'+player.name+'\0'+code);
+  const digest=await crypto.subtle.digest('SHA-256',bytes);
+  const actual=Array.from(new Uint8Array(digest),byte=>byte.toString(16).padStart(2,'0')).join('');
+  return actual===player.password_hash;
+ }
  function metricCard(season,player,key,label,type,direction){
   const value=player.batting[key],benchmark=season.benchmarks.batting[key];
   const card=document.createElement('article');card.className='gc-stat-card';
@@ -55,6 +68,7 @@ export function startGameChanger({element:$}){
  }
  function draw(){
   const season=seasons.find(s=>s.id===seasonSelect.value),player=season?.players.find(p=>p.id===playerSelect.value);
+  if(player&&authorizedPlayerKey!==playerKey(season,player)){hidePlayerStats();return;}
   details.hidden=!player;
   if(!player){message.hidden=false;message.textContent=season?'Choose a player to see season stats and team comparisons.':'Loading GameChanger stats…';return;}
   message.hidden=true;
@@ -85,7 +99,7 @@ export function startGameChanger({element:$}){
   const seasonLabel=document.createElement('span');seasonLabel.textContent=season.label+' · '+player.name+' · #'+player.number;
   heading.append(title,seasonLabel);comparison.append(heading);
   const note=document.createElement('p');note.className='gc-method-note';
-  note.textContent='Rate stats use the exported team rate. Counting stats compare season totals with the average for players who recorded stats in that category; playing time differs.';
+  note.textContent='Rate stats use the exported team rate. Counting-stat benchmarks divide team totals by 14 players, counting players with no recorded stats as zero. Innings pitched is averaged among pitchers.';
   comparison.append(note);
   const wrap=document.createElement('div');wrap.className='gc-table-wrap';
   const table=document.createElement('table');table.className='gc-stats-table';
@@ -112,7 +126,7 @@ export function startGameChanger({element:$}){
   const season=seasons.find(s=>s.id===seasonSelect.value),previous=keep?playerSelect.value:'';
   playerSelect.replaceChildren(new Option('Choose a player',''));
   for(const player of season?.players??[])playerSelect.add(new Option('#'+player.number+' · '+player.name,player.id));
-  playerSelect.value=season?.players.some(p=>p.id===previous)?previous:'';draw();
+  playerSelect.value=season?.players.some(p=>p.id===previous)&&authorizedPlayerKey===playerKey(season,season.players.find(p=>p.id===previous))?previous:'';draw();
  }
  function setGroup(next){
   if(!GROUPS[next])return;group=next;
@@ -120,10 +134,29 @@ export function startGameChanger({element:$}){
   draw();
  }
  for(const button of buttons)button.addEventListener('click',()=>setGroup(button.dataset.gamechangerGroup));
- statSelect.addEventListener('change',draw);seasonSelect.addEventListener('change',()=>fillPlayers(false));playerSelect.addEventListener('change',draw);
- fetch('./gamechanger-stats.json?v=gamechanger-20261027').then(response=>{if(!response.ok)throw new Error('Stats unavailable');return response.json();}).then(data=>{
+ statSelect.addEventListener('change',draw);
+ seasonSelect.addEventListener('change',()=>{authorizedPlayerKey='';playerSelect.value='';hidePlayerStats();fillPlayers(false);});
+ playerSelect.addEventListener('change',()=>{
+  const season=seasons.find(s=>s.id===seasonSelect.value),player=season?.players.find(p=>p.id===playerSelect.value);
+  if(!player){authorizedPlayerKey='';hidePlayerStats();return;}
+  if(authorizedPlayerKey===playerKey(season,player)){draw();return;}
+  authorizedPlayerKey='';
+  playerSelect.value='';hidePlayerStats();requestPlayer(season,player);
+ });
+ accessForm.addEventListener('submit',async event=>{
+  event.preventDefault();if(!pendingPlayer)return;
+  const candidate=pendingPlayer;const submit=$('gamechanger-access-submit');submit.disabled=true;accessError.hidden=true;
+  let valid=false;try{valid=await verifyPlayerPassword(candidate.player,accessInput.value);}catch{}
+  submit.disabled=false;
+  if(!valid){accessError.textContent='That password does not match. Try again.';accessError.hidden=false;accessInput.value='';accessInput.focus();return;}
+  authorizedPlayerKey=playerKey(candidate.season,candidate.player);playerSelect.value=candidate.player.id;pendingPlayer=null;accessInput.value='';accessDialog.close();draw();
+ });
+ $('gamechanger-access-cancel').addEventListener('click',()=>{pendingPlayer=null;accessInput.value='';accessDialog.close();hidePlayerStats();});
+ accessDialog.addEventListener('cancel',event=>{event.preventDefault();pendingPlayer=null;accessInput.value='';accessDialog.close();hidePlayerStats();});
+  fetch('./gamechanger-stats.json?v=gamechanger-team14-password1').then(response=>{if(!response.ok)throw new Error('Stats unavailable');return response.json();}).then(data=>{
   seasons=data.seasons??[];seasonSelect.replaceChildren(...seasons.map(s=>new Option(s.label,s.id)));
+  if(data.last_updated){const date=new Date(data.last_updated+'T12:00:00Z');updated.textContent='LAST UPDATED · '+new Intl.DateTimeFormat('en-CA',{dateStyle:'long',timeZone:'UTC'}).format(date);}
   seasonSelect.value=seasons.find(s=>s.id==='16U')?.id??seasons[0]?.id??'';fillPlayers(false);
-  message.hidden=false;message.textContent='Choose a player to see season stats and team comparisons.';
+  hidePlayerStats();
  }).catch(()=>{message.hidden=false;message.textContent='GameChanger stats could not be loaded. Please refresh the page.';});
 }
