@@ -1,4 +1,4 @@
-import {visionDayNumber,visionNextChange} from './vision-videos.mjs?v=concentration-marv-20261027';
+import {visionDayNumber,visionNextChange} from './vision-videos.mjs?v=schedule-auto-refresh-20261025';
 /** Ascending-number challenge with completed times in the existing workout journal. */
 export function concentrationNumbers(random=Math.random){
   const values=Array.from({length:100},(_,i)=>i+1);

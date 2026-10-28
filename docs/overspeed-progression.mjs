@@ -38,6 +38,11 @@ export function validateOverSpeedSession(record,players){
     if(!Array.isArray(ids)||new Set(ids).size!==ids.length||ids.some(id=>!steps.some(s=>s.id===id))||!Array.isArray(legacy)||new Set(legacy).size!==legacy.length||legacy.some(id=>!program.drills.some(d=>d.id===id))||!ids.length&&!legacy.length)throw new TypeError('Keep the saved guided steps and earlier reported drills.');
     const links=record.guided_step_records;if(!Array.isArray(links)||links.length!==ids.length||links.some((link,i)=>!link||link.step_id!==ids[i]||typeof link.record_id!=='string'||!link.record_id.trim()||link.record_id.length>120)||new Set(links.map(link=>link.record_id)).size!==links.length)throw new TypeError('Keep each guided step linked to its saved reading.');
     for(const drill of record.drills){const done=legacy.includes(drill.drill_id)||steps.filter(s=>s.drill_id===drill.drill_id).every(s=>ids.includes(s.id));if(drill.completed!==done)throw new TypeError('A guided drill needs every prescribed setup and side before completion.');}
+  }else if(record.completion_method==='guided_no_radar'){
+    const program=OVERSPEED_LIBRARY.programs.find(p=>p.id===record.program_id),steps=overSpeedSteps(program),ids=record.unmeasured_steps;
+    if(!Array.isArray(ids)||!ids.length||ids.length>steps.length||ids.some((id,i)=>id!==steps[i].id))throw new TypeError('Complete the no-radar steps in their prescribed order.');
+    for(const drill of record.drills)if(drill.completed!==steps.filter(s=>s.drill_id===drill.drill_id).every(s=>ids.includes(s.id)))throw new TypeError('Complete every side and setup before completing a drill.');
+    if(record.guided_step_records?.length||record.guided_completed_steps?.length)throw new TypeError('No-radar completion cannot contain measured step references.');
   }else if(!count)throw new TypeError('Mark at least one full drill complete.');
   if(record.completion_status!==(count===record.drills.length?'completed':'partial'))throw new TypeError('Workout completion must match the reported drills.');return true;
 }
@@ -83,13 +88,14 @@ export function upsertOverSpeedSession(records,record,players,asOf){
   const copy={...record,created_at:existing?.created_at??record.created_at,drills:record.drills.map(d=>({...d}))};return existing?records.map(r=>r.id===record.id?copy:r):[...records,copy];
 }
 export function overSpeedSessionsCsv(records){
-  const rows=[['id','player','date','cycle','phase','level','completion','drill','completed','notes','guided_completed_steps_json','guided_step_records_json','guided_legacy_drills_json'],...records.flatMap(r=>{const s=overspeedStage(r.stage_id);return r.drills.map(d=>[r.id,r.player,r.session_date,s.cycle,s.phase,s.level,r.completion_status,d.drill_id,d.completed,r.notes]);})];
+  const rows=[['id','player','date','cycle','phase','level','completion','drill','completed','notes','guided_completed_steps_json','guided_step_records_json','guided_legacy_drills_json','completion_method','unmeasured_steps_json'],...records.flatMap(r=>{const s=overspeedStage(r.stage_id);return r.drills.map(d=>[r.id,r.player,r.session_date,s.cycle,s.phase,s.level,r.completion_status,d.drill_id,d.completed,r.notes,JSON.stringify(r.guided_completed_steps??[]),JSON.stringify(r.guided_step_records??[]),JSON.stringify(r.guided_legacy_drills??[]),r.completion_method??'',JSON.stringify(r.unmeasured_steps??[])]);})];
   const cell=v=>'"'+String(typeof v==='string'&&/^\s*[=+@-]/.test(v)?"'"+v:v??'').replaceAll('"','""')+'"';return rows.map(row=>row.map(cell).join(',')).join('\r\n');
 }
 
 export function guidedOverSpeedWorkout(records,speedRecords,{player,date,stage_id,removed_record_ids=[]},players,asOf){
   const draft=overspeedSessionDraft(stage_id),program=OVERSPEED_LIBRARY.programs.find(p=>p.id===draft.program_id),day=records.find(r=>r.player===player&&r.session_date===date);
   if(day&&day.stage_id!==stage_id)throw new TypeError('This date already belongs to another training phase.');
+  if(day?.completion_method==='guided_no_radar')throw new TypeError('This workout is a no-radar session. Keep readings separate from its completion checks.');
   const raw=speedRecords.filter(r=>r.player===player&&r.session_date===date&&r.program_id===program.id&&r.guided_protocol==='velo_overspeed_steps_v1'&&r.guided_stage_id===stage_id);for(const r of raw)validateBatSpeedSet(r,players);
   const legacy=day?.completion_method==='guided_bat_speed'?[...day.guided_legacy_drills]:day?.drills.filter(d=>d.completed).map(d=>d.drill_id)??[];
   const references=new Map((day?.guided_step_records??[]).filter(link=>!removed_record_ids.includes(link.record_id)).map(link=>[link.step_id,link.record_id]));for(const r of raw)if(!removed_record_ids.includes(r.id))references.set(r.guided_step_id,r.id);
@@ -98,4 +104,18 @@ export function guidedOverSpeedWorkout(records,speedRecords,{player,date,stage_i
   const steps=overSpeedSteps(program),drills=draft.drills.map(d=>({...d,completed:legacy.includes(d.drill_id)||steps.filter(s=>s.drill_id===d.drill_id).every(s=>ids.includes(s.id))}));let hash=2166136261;for(const c of player)hash=Math.imul(hash^c.charCodeAt(0),16777619)>>>0;const stamp=new Date().toISOString();
   const record={...day,...draft,id:day?.id??`os-session-${hash.toString(16)}-${date}`,player,session_date:date,drills,completion_confirmed:true,completion_status:drills.every(d=>d.completed)?'completed':'partial',completion_method:'guided_bat_speed',guided_completed_steps:ids,guided_step_records:links,guided_legacy_drills:legacy,notes:day?.notes??'',created_at:day?.created_at??stamp,updated_at:stamp};
   return {record,next:upsertOverSpeedSession(records,record,players,asOf)};
+}
+
+export function unmeasuredOverSpeedWorkout(records,{player,date,stage_id,step_id,completed,notes},players,asOf){
+ const draft=overspeedSessionDraft(stage_id),program=OVERSPEED_LIBRARY.programs.find(p=>p.id===draft.program_id),steps=overSpeedSteps(program),index=steps.findIndex(s=>s.id===step_id),day=records.find(r=>r.player===player&&r.session_date===date);
+ if(index<0||typeof completed!=='boolean')throw Error('Choose a prescribed step and confirm its required swings.');
+ if(day&&(day.stage_id!==stage_id||day.completion_method!=='guided_no_radar'))throw Error('Keep this date’s original phase and radar mode.');
+ const prior=day?.unmeasured_steps??[];
+ if(index>prior.length)throw Error('Complete the current step before advancing.');
+ const ids=completed?steps.slice(0,Math.max(prior.length,index+1)).map(s=>s.id):prior.slice(0,index);
+ if(!ids.length)return {record:null,next:records.filter(r=>r!==day)};
+ const stamp=new Date().toISOString();let hash=2166136261;for(const c of player)hash=Math.imul(hash^c.charCodeAt(0),16777619)>>>0;
+ const drills=draft.drills.map(d=>({...d,completed:steps.filter(s=>s.drill_id===d.drill_id).every(s=>ids.includes(s.id))}));
+ const record={...draft,id:day?.id??`os-session-${hash.toString(16)}-${date}`,player,session_date:date,drills,completion_confirmed:true,completion_status:drills.every(d=>d.completed)?'completed':'partial',completion_method:'guided_no_radar',unmeasured_steps:ids,notes:notes??day?.notes??'',created_at:day?.created_at??stamp,updated_at:stamp};
+ return {record,next:upsertOverSpeedSession(records,record,players,asOf)};
 }

@@ -1,7 +1,8 @@
-import {startTargetBaseline} from './target-baseline.mjs?v=velocity-baseline-fallback-20261027';
+import {startGameChangerCoach} from './gamechanger-coach.mjs?v=schedule-auto-refresh-20261025';
+import {startTargetBaseline} from './target-baseline.mjs?v=schedule-auto-refresh-20261025';
 import {startVisionVideos} from './vision-videos.mjs?v=schedule-auto-refresh-20261025';
-import { startConcentrationGrid } from './concentration-grid.mjs?v=concentration-marv-20261027';
-import { startGameChanger } from './gamechanger.mjs?v=gamechanger-ranges-20261028';
+import { startConcentrationGrid } from './concentration-grid.mjs?v=schedule-auto-refresh-20261025';
+import { startGameChanger } from './gamechanger.mjs?v=schedule-auto-refresh-20261025';
 import {startCoachAccess} from './coach-access.mjs?v=rangers-organization-20261025';
 import {startDeviceMigration} from './device-migration-ui.mjs?v=rangers-organization-20261025';
 import {prepareDemoReset,runDemoReset} from './demo-reset.mjs?v=rangers-organization-20261025';
@@ -19,12 +20,12 @@ import { startBlastPcr } from './blast-pcr-ui.mjs?v=rangers-organization-2026102
 import { startWorkoutFlow } from './workout-flow.mjs?v=rangers-organization-20261025';
 import { OVERSPEED_LIBRARY } from './overspeed-library.mjs?v=schedule-auto-refresh-20261025';
 import { BAT_CONFIGURATIONS, BAT_SPEED_DEVICES, validateBatSpeedSet, upsertBatSpeedSet, summarizeBatSpeeds, batSpeedContext, batSpeedProgress, batSpeedCsv } from './overspeed.mjs?v=schedule-auto-refresh-20261025';
-import { startOverSpeed } from './overspeed-ui.mjs?v=paired-sides-20261028';
+import { startOverSpeed } from './overspeed-ui.mjs?v=rangers-organization-20261025';
 import { workoutActivity, workoutActivityCsv, workoutWeek } from './accountability.mjs?v=schedule-auto-refresh-20261025';
 import { startWorkoutAccountability } from './accountability-ui.mjs?v=compact-workouts-20261025';
 import { journalChanges, journalToCsv, validateJournalEvent } from './journal.mjs?v=schedule-auto-refresh-20261025';
 import { startTeamJournal } from './journal-ui.mjs?v=schedule-auto-refresh-20261025';
-import { DRILLS, COLORS, getTargets, getDubsReferences, DUBS_BALLS, getMarvReferences, MARV_BALLS, summarizeThrows, BLAST_METRICS, validateBlastRecord, summarizeBlast, upsertBlastRecord, filterBlastRecords, blastDailyProgress, blastRecordsToCsv, WORKOUT_CATEGORIES, validateWorkout, upsertWorkout, summarizeWorkouts, workoutsToCsv, BASEBALL_CONTEXTS, BASEBALL_MOUND_DISTANCE_FT, BASEBALL_RADAR_DEVICE, validateBaseballSession, upsertBaseballSession, baseballSessionsToCsv } from './engine.mjs?v=marv-rollin-gc-zero-rank-copy-20261027';
+import { DRILLS, COLORS, getTargets, getDubsReferences, DUBS_BALLS, getMarvReferences, MARV_BALLS, summarizeThrows, BLAST_METRICS, validateBlastRecord, summarizeBlast, upsertBlastRecord, filterBlastRecords, blastDailyProgress, blastRecordsToCsv, WORKOUT_CATEGORIES, validateWorkout, upsertWorkout, summarizeWorkouts, workoutsToCsv, BASEBALL_CONTEXTS, BASEBALL_MOUND_DISTANCE_FT, BASEBALL_RADAR_DEVICE, validateBaseballSession, upsertBaseballSession, baseballSessionsToCsv } from './engine.mjs?v=schedule-auto-refresh-20261025';
 import { WORKOUT_LIBRARY } from './library.mjs?v=schedule-auto-refresh-20261025';
 import { isWorkoutVideoUrl } from './library-tools.mjs?v=compact-workouts-20261025';
 
@@ -428,7 +429,8 @@ $('overspeed-player').addEventListener('change',()=>{$('overspeed-clear-entries'
 $('overspeed-clear-entries').addEventListener('click',()=>{const player=$('overspeed-player').value;if(!player)return;const count=overspeedLog.records().filter(r=>r.player===player).length+overspeedProtocol.records().filter(r=>r.player===player).length;if(!count){$('overspeed-announcement').textContent='No saved entries to clear.';return;}if(!window.confirm(`Clear all saved OverSpeed readings and workout progress for ${player}, and reset the current forms? Other players and trackers are kept.`))return;overspeedLog.clearPlayer(player);overspeedProtocol.clearPlayer(player);$('overspeed-announcement').textContent='OverSpeed entries cleared for the selected player.';});
 const pulseLog=startPulse({players:PLAYER_LABELS,scope:rosterHash.toString(16),element:$,download:downloadFile,onChange:(before,after)=>teamJournal?.record('pulse',before,after)});
 const visionVideos=startVisionVideos({element:$});
-const gameChanger=startGameChanger({element:$,onPlayerAuthorized:player=>tabPlayers?.setCurrent(player)});
+function gameChangerRemote(method,args=[]){return new Promise((resolve,reject)=>{if(!globalThis.google?.script?.run){reject(Error('Shared coach connection is unavailable.'));return;}const timer=setTimeout(()=>reject(Error('The shared stats request was not confirmed. Try again.')),25000);globalThis.google.script.run.withSuccessHandler(result=>{clearTimeout(timer);resolve(result);}).withFailureHandler(error=>{clearTimeout(timer);reject(Error(error?.message||'Shared stats could not be confirmed. Use your private coach code or coach account.'));})[method](...args);});}
+const gameChanger=startGameChanger({element:$,onPlayerAuthorized:player=>tabPlayers?.setCurrent(player),players:PLAYER_LABELS,hashes:PLAYER_JERSEY_HASHES,readRemote:()=>gameChangerRemote('getGameChangerStats')});
 const concentrationGrid=startConcentrationGrid({element:$,players:PLAYER_LABELS,flow:workoutFlow,getDailyRecords:()=>teamJournal?.concentrationHistory()??[],readRemote:()=>teamJournal.readConcentrationSummary()});
 
 
@@ -437,11 +439,13 @@ axePrograms=startAxePrograms({element:$,players:PLAYER_LABELS,flow:workoutFlow,d
 tabPlayers=startTabPlayers({players:PLAYER_LABELS,element:$});
 const playerAccess=startPlayerAccess({players:PLAYER_LABELS,hashes:PLAYER_JERSEY_HASHES,element:$});
 const coachAccess=startCoachAccess({element:$,onUnlock:()=>{workoutOverview?.refresh();pulseLog.refresh();}});
+const gameChangerCoach=startGameChangerCoach({element:$,publish:request=>gameChangerRemote('publishGameChangerStats',[request]),onPublished:seasons=>gameChanger.apply(seasons),isCoach:()=>coachAccess.isVerified()});
+$('coach-access-lock').addEventListener('click',()=>gameChangerCoach.reset());
 const routeLabels = { workouts: 'WORKOUT LOG', throwing: 'THROWING ROUTINE',  targets: 'PLYOCARE LAB', tracker: 'BASEBALL THROWS', pulse: 'DRIVELINE PULSE', blast: 'BLAST MOTION', overspeed: 'OVERSPEED PROGRAM', axe:'AXE BATS', concentration: 'VISION TRAINING', gamechanger: 'GAMECHANGER STATS', approach: 'TRAINING APPROACH', coach: 'COACH DESK' };
 function route() {
   const key = location.hash.slice(1);
   const view = Object.hasOwn(routeLabels, key) ? key : 'workouts';
-  tabPlayers.activate(view);if(view==='gamechanger')gameChanger.syncPlayer(tabPlayers.current());
+  tabPlayers.activate(view);if(view==='gamechanger'){gameChanger.syncPlayer(tabPlayers.current());void gameChanger.refresh();}
   playerAccess.activate(view);
   coachAccess.activate(view);
   for (const name of Object.keys(routeLabels)) {
