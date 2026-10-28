@@ -53,6 +53,8 @@ export function overSpeedSteps(program){
 }
 export function overSpeedStepProgress(records,{player,program,date,stage_id,legacy_drills=[],saved_steps=[]}){
   const steps=overSpeedSteps(program),eligible=records.filter(r=>r.player===player&&r.program_id===program.id&&r.session_date===date&&r.guided_protocol==='velo_overspeed_steps_v1'&&r.guided_stage_id===stage_id),saved=new Set([...saved_steps,...eligible.map(r=>r.guided_step_id)]),legacy=new Set(legacy_drills);
-  const finished=step=>saved.has(step.id)||legacy.has(step.drill_id),next=steps.find(step=>!finished(step))??null;
-  return {steps,next,done:steps.filter(finished).length,total:steps.length,complete:!next,completed_drills:program.drills.filter(d=>steps.filter(s=>s.drill_id===d.id).every(finished)).map(d=>d.id)};
+  const finished=step=>saved.has(step.id)||legacy.has(step.drill_id),next=steps.find(step=>!finished(step))??null,unitMap=new Map();
+  for(const step of steps){const id=`${step.drill_id}/${step.set_number}`;if(!unitMap.has(id))unitMap.set(id,{id,drill_id:step.drill_id,configuration:step.configuration,steps:[]});unitMap.get(id).steps.push(step);}
+  const units=[...unitMap.values()],done=units.filter(unit=>unit.steps.every(finished)).length;
+  return {steps,units,next,done,total:units.length,complete:!next,completed_drills:program.drills.filter(d=>steps.filter(s=>s.drill_id===d.id).every(finished)).map(d=>d.id)};
 }
