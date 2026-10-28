@@ -6,7 +6,9 @@ const OVERSPEED_BAT_VISUALS=Object.freeze({
 });
 export function startOverSpeed({library,players,scope,element,download,validate,upsert,summarize,contextFor,progressFor,toCsv,configurations,devices,onChange,protocol,canUseProgram=()=>true,beforePlayerChange=()=>true,onPlayerChanged=()=>{}}){
   const node=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n;};
+  if(!document.getElementById('overspeed-paired-side-style')){const style=node('style');style.id='overspeed-paired-side-style';style.textContent='.overspeed-paired-forms{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}.overspeed-paired-forms .overspeed-inline-form{margin:0;padding:18px;border:1px solid var(--line);border-radius:14px;background:#fff}.overspeed-side-complete{display:flex;min-height:96px;flex-direction:column;justify-content:center;gap:8px;padding:18px;border:1px solid var(--line);border-radius:14px;background:#f4f7fb;color:var(--ink)}.overspeed-side-complete strong{font-size:15px}.overspeed-side-complete span{color:var(--muted);font-size:13px}.overspeed-single-form{grid-template-columns:minmax(0,1fr)}@media(max-width:760px){.overspeed-paired-forms{grid-template-columns:minmax(0,1fr)}}';document.head.append(style);}
   const key='rangers-overspeed-v1-'+scope;let records=[],readable=true,saved=true,lastPlayer='',lastProgram='';let activeProgram=null,currentHosts=[],manualMode=false,reviewStepId=null;const entries=new Map(),programs=new Map(library.programs.map(p=>[p.id,p]));
+  const entryKey=(p,d,side='dominant')=>side==='dominant'?`${p.id}/${d.id}`:`${p.id}/${d.id}/${side}`;
   const playerSelect=element('overspeed-player'),programSelect=element('overspeed-program');const prompt=node('option','','Choose a player');prompt.value='';playerSelect.replaceChildren(prompt);for(const name of players){const option=node('option','',name);option.value=name;playerSelect.append(option);}
   for(const family of ['overspeed','counterweight']){const group=node('optgroup');group.label=family==='overspeed'?'OverSpeed':'Counterweight';for(const p of library.programs.filter(p=>p.family===family)){const option=node('option','',p.name);option.value=p.id;group.append(option);}programSelect.append(group);}
   try{const value=localStorage.getItem(key);if(value){const parsed=JSON.parse(value);if(parsed.version!==1||!Array.isArray(parsed.records))throw Error();const ids=new Set();for(const r of parsed.records){validate(r,players);if(ids.has(r.id))throw Error();ids.add(r.id);}records=parsed.records;}}
@@ -16,8 +18,8 @@ export function startOverSpeed({library,players,scope,element,download,validate,
     const player=playerSelect.value,date=element('os-session-date').value;
     for(const group of programSelect.children)for(const option of group.tagName==='OPTGROUP'?group.children:[]){option.disabled=!player||!canUseProgram(option.value,player,date);option.textContent=programs.get(option.value).name+(option.disabled?' · Locked':'');}programSelect.disabled=!player;
   }
-  function createEntry(p,d){
-    const form=node('form','overspeed-inline-form');form.noValidate=true;form.dataset.drill=d.id;form.dataset.program=p.id;const fields={},wrappers={},uid=`os-${p.id}-${d.id}`;let dirty=false,editing=null,standaloneStatus=null,guidedStep=null;
+  function createEntry(p,d,entrySide='dominant'){
+    const form=node('form','overspeed-inline-form');form.noValidate=true;form.dataset.drill=d.id;form.dataset.program=p.id;const fields={},wrappers={},uid=`os-${p.id}-${d.id}-${entrySide}`;let dirty=false,editing=null,standaloneStatus=null,guidedStep=null;
     const heading=node('h4','','Pocket Radar · bat speed');form.append(heading);
     const visual=node('figure','overspeed-bat-visual'),photo=node('img','overspeed-bat-photo'),caption=node('figcaption','overspeed-bat-caption');visual.hidden=true;photo.decoding='async';visual.append(photo,caption);form.append(visual);
     const grid=node('div','workout-context-fields');
@@ -57,7 +59,7 @@ export function startOverSpeed({library,players,scope,element,download,validate,
       if(!existing&&!canUseProgram(p.id,playerSelect.value,fields.date.value)){error.hidden=false;error.textContent='This OverSpeed level is locked. Complete the earlier phases first.';return;}
       const gameBat=fields.configuration.value==='game_bat';if(gameBat&&!fields.bat.value.trim()){error.hidden=false;error.textContent='Choose a bat size for Game bat.';return;}
       const batLabel=gameBat?fields.bat.value.trim():existing?.configuration===fields.configuration.value?existing.bat_label:'Velo OverSpeed training bat';
-      const flow=activeProgram?guideProgress():null;if(!existing&&!manualMode&&(!guidedStep||flow?.next?.id!==guidedStep.id)){error.hidden=false;error.textContent='Continue with the current guided step.';return;}
+      const flow=activeProgram?guideProgress():null,currentUnit=flow?.units?.find(unit=>unit.steps.some(item=>item.id===flow.next?.id)),entryUnit=flow?.units?.find(unit=>unit.steps.some(item=>item.id===guidedStep?.id));if(!existing&&!manualMode&&(!guidedStep||entryUnit?.id!==currentUnit?.id)){error.hidden=false;error.textContent='Continue with the current guided step.';return;}
       const metadata=existing?.guided_protocol?{guided_protocol:existing.guided_protocol,guided_source_sha256:existing.guided_source_sha256,guided_step_id:existing.guided_step_id,guided_stage_id:existing.guided_stage_id}:!manualMode&&guidedStep?{guided_protocol:'velo_overspeed_steps_v1',guided_source_sha256:library.source_sha256,guided_step_id:guidedStep.id,guided_stage_id:protocol.guidedContext(p.id,fields.date.value).stage_id}:{};
       const record={...metadata,id:existing?.id??globalThis.crypto?.randomUUID?.()??`speed-${Date.now()}-${Math.random().toString(36).slice(2)}`,player:playerSelect.value,session_date:fields.date.value,program_id:p.id,drill_id:d.id,configuration:fields.configuration.value,side:fields.side.value,puck_used:counterweight?(fields.puck.value===''?null:fields.puck.value==='yes'):(existing?.puck_used??false),bat_label:batLabel,device_type:existing?.device_type??'pocket_radar',device_label:existing?.device_label??'Pocket Radar',metric:'bat_speed',unit:'mph',swings_mph:fields.swings.map(input=>input.value.trim()===''?null:input.valueAsNumber),notes:fields.notes.value.trim(),created_at:existing?.created_at??new Date().toISOString()};
       let completion;try{const next=upsert(records,record,players),applyCompletion=protocol.prepareSpeedCompletion(record,{editingSpeed:Boolean(existing),nextSpeedRecords:next,manualExtra:manualMode});persist(next);completion=applyCompletion();}catch(problem){error.hidden=false;error.textContent=problem.message;return;}
@@ -68,7 +70,11 @@ export function startOverSpeed({library,players,scope,element,download,validate,
   }
   function mount(p,hosts){
     activeProgram=p;currentHosts=hosts;if(!p){programSelect.value='';lastProgram='';element('overspeed-guided-progress').replaceChildren();return;}programSelect.value=p.id;lastProgram=p.id;
-    for(const {drill,host,status,trackWorkout}of hosts){const id=p.id+'/'+drill.id;let entry=entries.get(id);if(!entry){entry=createEntry(p,drill);entries.set(id,entry);}entry.setDate(element('os-session-date').value);host.append(entry.form);entry.setStatusTarget(trackWorkout?null:status);}refreshAccess();refreshGuide();
+    for(const {drill,host,status,trackWorkout}of hosts){let wrapper=host.querySelector('.overspeed-paired-forms');if(!wrapper){wrapper=node('div','overspeed-paired-forms');host.append(wrapper);}wrapper.classList.toggle('overspeed-single-form',drill.side!=='Both');
+      const sides=drill.side==='Both'?['dominant','non_dominant']:['dominant'];
+      for(const side of sides){const id=entryKey(p,drill,side);let entry=entries.get(id);if(!entry){entry=createEntry(p,drill,side);entries.set(id,entry);}entry.setDate(element('os-session-date').value);wrapper.append(entry.form);if(side==='dominant')entry.setStatusTarget(trackWorkout?null:status);}
+    }
+    refreshAccess();refreshGuide();
   }
   function guideProgress(){
     const p=activeProgram,date=element('os-session-date').value,context=protocol.guidedContext(p.id,date);
@@ -84,25 +90,39 @@ export function startOverSpeed({library,players,scope,element,download,validate,
     for(const entry of entries.values())entry.reset();reviewStepId=stepId;manualMode=false;refreshGuide(true);
   }
   function refreshGuide(focus=false){
-    if(!activeProgram)return;const progress=guideProgress(),p=activeProgram,box=element('overspeed-guided-progress');let step=reviewStepId?progress.steps.find(step=>step.id===reviewStepId):progress.next,record=reviewStepId?savedStepRecord(step):null;
-    if(reviewStepId&&!record){reviewStepId=null;step=progress.next;}const reviewing=Boolean(reviewStepId),position=step?progress.steps.findIndex(item=>item.id===step.id):progress.steps.length;box.replaceChildren();
+    if(!activeProgram)return;const progress=guideProgress(),p=activeProgram,box=element('overspeed-guided-progress');
+    let step=reviewStepId?progress.steps.find(item=>item.id===reviewStepId):progress.next,record=reviewStepId?savedStepRecord(step):null;
+    if(reviewStepId&&!record){reviewStepId=null;step=progress.next;}
+    const reviewing=Boolean(reviewStepId),unit=step?progress.units.find(item=>item.steps.some(candidate=>candidate.id===step.id)):null,position=unit?progress.units.findIndex(item=>item.id===unit.id):progress.units.length,paired=Boolean(unit?.steps.length===2);
+    box.replaceChildren();
     box.append(node('div','eyebrow',manualMode?'FULL WORKOUT / ENTER EACH DRILL':reviewing?'REVIEW SAVED STEP':'GUIDED WORKOUT'),node('h3','',manualMode?'Full program · enter each drill':step?`Step ${position+1} of ${progress.total} · ${step.drill_name}`:'Workout steps finished'));
-    box.append(node('p','',manualMode?'All drills are shown together. Choose the setup and side you completed, then enter its Pocket Radar readings.':step?`${configurations[step.configuration]} · ${step.side==='dominant'?'Dominant':'Non-dominant'} · ${step.reps} swings`:`${progress.total} / ${progress.total} steps accounted for. Your next workout uses its own training date.`));
+    box.append(node('p','',manualMode?'All drills are shown together. Choose the setup and side you completed, then enter its Pocket Radar readings.':step?`${configurations[step.configuration]} · ${paired?'Dominant & non-dominant':step.side==='dominant'?'Dominant':'Non-dominant'} · ${step.reps} swings${paired?' per side':''}`:`${progress.total} / ${progress.total} steps accounted for. Your next workout uses its own training date.`));
     if(!manualMode){
       box.append(node('p','field-help',`${progress.done} / ${progress.total} steps saved or previously reported complete.`));
       if(reviewing)box.append(node('p','field-help','Your saved speeds are filled in. Save changes & next updates this entry. Resume workout returns to the next unfinished step.'));
-      const nav=node('div','overspeed-step-navigation'),previous=progress.steps.slice(0,position).reverse().find(item=>savedStepRecord(item)),back=node('button','secondary-button overspeed-step-previous','← Previous step');back.type='button';back.disabled=!previous;back.addEventListener('click',()=>{if(previous)goToGuideStep(previous.id);});if(!step)nav.append(back);
-      if(reviewing){const following=progress.steps.slice(position+1).find(item=>savedStepRecord(item));if(following){const forward=node('button','secondary-button overspeed-step-forward','Next saved step →');forward.type='button';forward.addEventListener('click',()=>goToGuideStep(following.id));nav.append(forward);}const resume=node('button','secondary-button overspeed-step-resume',progress.next?'Resume workout':'Finish review');resume.type='button';resume.addEventListener('click',()=>goToGuideStep(null));nav.append(resume);}box.append(nav);
+      const nav=node('div','overspeed-step-navigation'),previous=progress.units.slice(0,position).flatMap(item=>item.steps).reverse().find(item=>savedStepRecord(item)),back=node('button','secondary-button overspeed-step-previous','← Previous step');back.type='button';back.disabled=!previous;back.addEventListener('click',()=>{if(previous)goToGuideStep(previous.id);});if(!step)nav.append(back);
+      if(reviewing){const following=progress.units.slice(position+1).flatMap(item=>item.steps).find(item=>savedStepRecord(item));if(following){const forward=node('button','secondary-button overspeed-step-forward','Next saved step →');forward.type='button';forward.addEventListener('click',()=>goToGuideStep(following.id));nav.append(forward);}const resume=node('button','secondary-button overspeed-step-resume',progress.next?'Resume workout':'Finish review');resume.type='button';resume.addEventListener('click',()=>goToGuideStep(null));nav.append(resume);}box.append(nav);
       if(!previous&&position>0&&progress.done)box.append(node('p','field-help','Earlier speeds are not stored on this device. Use the device where they were entered to correct them.'));
     }
     if(!manualMode&&!step&&focus)box.scrollIntoView({behavior:'smooth',block:'center'});
     if(!manualMode&&!reviewing&&step?.configuration==='both_sleeves'&&step.side==='dominant')box.append(node('p','field-help','The source plan specifies a 60–90 second break before the heavy set for each drill.'));
-    
-    for(const {drill,host}of currentHosts){const entry=entries.get(p.id+'/'+drill.id),card=host.parentElement??host.parent;card.hidden=!manualMode&&(!step||drill.id!==step.drill_id);if(!card.hidden){
-      if(reviewing){if(entry.editingId()!==record.id)entry.edit(record);else entry.configureStep(step);}else entry.configureStep(manualMode?null:step);
-      if(!manualMode&&!reviewing&&p.family==='counterweight'&&!entry.fields.puck.value){const prior=records.filter(r=>r.player===playerSelect.value&&r.program_id===p.id&&r.session_date===element('os-session-date').value&&r.guided_protocol==='velo_overspeed_steps_v1').at(-1);if(prior)entry.fields.puck.value=prior.puck_used?'yes':'no';}
-      if(focus&&!manualMode){entry.form.scrollIntoView({behavior:'smooth',block:'center'});entry.fields.swings[0].focus({preventScroll:true});}
-    }}
+    for(const {drill,host}of currentHosts){
+      const wrapper=host.querySelector('.overspeed-paired-forms');if(!wrapper)continue;
+      const card=host.parentElement??host.parent,isCurrent=!manualMode&&Boolean(unit)&&drill.id===step?.drill_id;card.hidden=!manualMode&&!isCurrent;
+      wrapper.querySelectorAll('.overspeed-side-complete').forEach(status=>status.remove());
+      const sides=drill.side==='Both'?['dominant','non_dominant']:['dominant'];
+      for(const side of sides){
+        const entry=entries.get(entryKey(p,drill,side));if(!entry)continue;
+        if(manualMode){entry.form.hidden=side!=='dominant';if(side==='dominant')entry.configureStep(null);continue;}
+        if(!isCurrent){entry.form.hidden=true;continue;}
+        const sideStep=unit?.steps.find(candidate=>candidate.side===side)??(step?.side===side?step:null);if(!sideStep){entry.form.hidden=true;continue;}
+        const saved=savedStepRecord(sideStep);
+        if(saved&&!(reviewing&&sideStep.id===step.id)){entry.form.hidden=true;const stats=summarize(saved.swings_mph),status=node('div','overspeed-side-complete');status.append(node('strong','',side==='dominant'?'Dominant · complete':'Non-dominant · complete'),node('span','',`Best ${stats.best_mph.toFixed(1)} mph · mean ${stats.mean_mph.toFixed(1)} mph`));wrapper.insertBefore(status,entry.form);continue;}
+        entry.form.hidden=false;if(reviewing&&sideStep.id===step.id){if(entry.editingId()!==record.id)entry.edit(record);else entry.configureStep(sideStep);}else entry.configureStep(sideStep);
+        if(!manualMode&&p.family==='counterweight'&&!entry.fields.puck.value){const prior=records.filter(r=>r.player===playerSelect.value&&r.program_id===p.id&&r.session_date===element('os-session-date').value&&r.guided_protocol==='velo_overspeed_steps_v1').at(-1);if(prior)entry.fields.puck.value=prior.puck_used?'yes':'no';}
+        if(focus&&sideStep.id===step?.id){entry.form.scrollIntoView({behavior:'smooth',block:'center'});entry.fields.swings[0].focus({preventScroll:true});}
+      }
+    }
   }
   function contextLabel(r){const p=programs.get(r.program_id),d=p.drills.find(d=>d.id===r.drill_id);return `${p.name} · ${d.name} · ${configurations[r.configuration]} · ${r.side==='dominant'?'dominant':'non-dominant'} · ${r.puck_used?'Puck':'no Puck'} · ${r.bat_label} · ${r.device_type==='pocket_radar'?'Pocket Radar':devices[r.device_type]+': '+r.device_label}`;}
   function history(){
@@ -115,7 +135,7 @@ export function startOverSpeed({library,players,scope,element,download,validate,
     const daily=element('overspeed-progress-days');daily.replaceChildren();for(const day of progress.days){const tr=node('tr');for(const value of [day.date,day.count,day.best_mph.toFixed(1),day.mean_mph.toFixed(1)])tr.append(node('td','',String(value)));daily.append(tr);}
     const container=element('overspeed-history');container.replaceChildren();if(!all.length){container.append(node('p','workout-history-help','No bat-speed sets for this player yet.'));return;}
     for(const r of all){const stats=summarize(r.swings_mph),card=node('details','workout-record'),heading=node('summary');card.dataset.recordId=r.id;heading.append(node('strong','',`${r.session_date} · Best ${stats.best_mph.toFixed(1)} mph`),node('span','',`${stats.count} swings · mean ${stats.mean_mph.toFixed(1)} mph`));card.append(heading);const body=node('div','workout-record-body');body.append(node('p','',contextLabel(r)),node('p','',r.swings_mph.map((v,i)=>`Swing ${i+1}: ${v===null?'—':v+' mph'}`).join(' · ')));if(r.notes)body.append(node('p','',r.notes));const actions=node('div','workout-record-actions'),edit=node('button','secondary-button','Edit set'),remove=node('button','delete-button','Delete set');edit.type=remove.type='button';
-      edit.addEventListener('click',()=>{if([...entries.values()].some(e=>e.hasChanges())&&!window.confirm('Replace unsaved bat-speed readings with this saved set?'))return;entries.clear();reviewStepId=null;manualMode=true;protocol.setProgram(r.program_id);entries.get(r.program_id+'/'+r.drill_id).edit(r);});
+      edit.addEventListener('click',()=>{if([...entries.values()].some(e=>e.hasChanges())&&!window.confirm('Replace unsaved bat-speed readings with this saved set?'))return;entries.clear();reviewStepId=null;manualMode=true;protocol.setProgram(r.program_id);const editProgram=programs.get(r.program_id),editDrill=editProgram.drills.find(drill=>drill.id===r.drill_id);entries.get(entryKey(editProgram,editDrill,r.side)).edit(r);});
       remove.addEventListener('click',()=>{if(!window.confirm('Delete this bat-speed set from this device?'))return;const next=records.filter(v=>v.id!==r.id);let apply;try{apply=r.guided_protocol?protocol.prepareGuidedChange(r,next,{removedRecordIds:[r.id]}):null;}catch(error){element('overspeed-announcement').textContent=error.message;return;}persist(next);apply?.();for(const entry of entries.values())if(entry.editingId()===r.id)entry.reset();history();refreshGuide();});actions.append(edit,remove);body.append(actions);card.append(body);container.append(card);}
   }
   programSelect.addEventListener('change',()=>{if(!programs.has(programSelect.value)){programSelect.value=lastProgram;return;}if(!discardDrafts()){programSelect.value=lastProgram;return;}protocol.setProgram(programSelect.value);});
@@ -124,4 +144,3 @@ export function startOverSpeed({library,players,scope,element,download,validate,
   element('overspeed-series').addEventListener('change',history);element('overspeed-export').addEventListener('click',()=>download('rangers-overspeed-bat-speed.csv',toCsv(records.filter(r=>r.player===playerSelect.value))));
   protocol.setContextGuard(discardDrafts);protocol.attachSpeedForms(mount);refreshAccess();history();return {records:()=>records,refreshAccess,clearPlayer(name){if(!players.includes(name))return false;persist(records.filter(r=>r.player!==name));if(playerSelect.value===name){for(const entry of entries.values())entry.reset();entries.clear();reviewStepId=null;manualMode=false;}history();refreshAccess();return true;}};
 }
-
