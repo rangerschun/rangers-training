@@ -7,10 +7,11 @@ import { validateBatSpeedSet, summarizeBatSpeeds } from './overspeed.mjs?v=sched
 export const ENTRY_HEADERS = Object.freeze(['event_id','received_at','entry_type','operation','record_id','player','session_date','title_or_drill','bat_or_radar',...BLAST_METRICS.map(m=>m.key),...Array.from({length:8},(_,i)=>'throw_'+(i+1)),'maximum_mph','average_top_5_mph','valid_throw_count','distance_ft','duration_minutes','effort','notes','record_json_1','record_json_2','record_json_3']);
 export function validateJournalEvent(event,players){
   if(!event||typeof event.event_id!=='string'||!/^[a-zA-Z0-9_-]{8,120}$/.test(event.event_id))throw new TypeError('Invalid entry identity.');
-  if(!['blast','blast_pcr','baseball','workout','overspeed','pulse','overspeed_session'].includes(event.kind)||!['save','delete'].includes(event.operation))throw new TypeError('Unsupported entry type.');
+  if(!['blast','blast_pcr','baseball','workout','overspeed','pulse','overspeed_session','player_settings'].includes(event.kind)||!['save','delete'].includes(event.operation))throw new TypeError('Unsupported entry type.');
   const record=event.record;
   if(!record||record.player!==event.player||!players.includes(event.player))throw new TypeError('Player identity mismatch.');
   if(typeof record.id!=='string'||!record.id.trim()||record.id.length>120)throw new TypeError('Invalid record identity.');
+  if(event.kind==='player_settings'){if(record.plyoball_brand!==undefined&&!['driveline','dubs','marv'].includes(record.plyoball_brand))throw new TypeError('Choose a supported plyoball brand.');if(record.throwing_start_date!==undefined&&record.throwing_start_date!==null&&(!/^\d{4}-\d{2}-\d{2}$/.test(record.throwing_start_date)||!Number.isFinite(Date.parse(record.throwing_start_date+'T12:00:00Z'))))throw new TypeError('Choose a valid throwing calendar start.');if(record.id!=='settings-'+event.player||record.velocity_baseline_mph!==null&&(!Number.isFinite(record.velocity_baseline_mph)||record.velocity_baseline_mph<1||record.velocity_baseline_mph>150)||record.baseline_source_key!==null&&typeof record.baseline_source_key!=='string'||typeof record.updated_at!=='string')throw new TypeError('Invalid player settings.');}
   if(event.kind==='blast')validateBlastRecord(record,players);
   if(event.kind==='blast_pcr')validateBlastPcrSession(record,players);
   if(event.kind==='workout')validateWorkout(record,players);

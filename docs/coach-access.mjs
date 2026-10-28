@@ -12,7 +12,7 @@ export function startCoachAccess({element:$,matches=coachPasswordMatches,onUnloc
  function lock(){attempt++;verified=false;input.value='';error.hidden=true;submit.disabled=false;render();}
  $('coach-access-form').addEventListener('submit',async event=>{
   event.preventDefault();if(submit.disabled)return;const token=++attempt;submit.disabled=true;error.hidden=true;
-  let valid=false;try{valid=await matches(input.value);}catch{if(token!==attempt)return;error.textContent='The password check could not run. Reload this page and try again.';error.hidden=false;submit.disabled=false;input.value='';return;}
+  let valid=false;try{valid=await matches(input.value);}catch(problem){if(token!==attempt)return;error.textContent=problem?.message||'Google Sheet could not load. Check your connection and try again.';error.hidden=false;submit.disabled=false;input.value='';return;}
   if(token!==attempt)return;input.value='';submit.disabled=false;
   if(!valid){error.textContent='That password does not match. Try again.';error.hidden=false;input.focus();return;}
   verified=true;render();onUnlock();$('coach-access-lock').focus();

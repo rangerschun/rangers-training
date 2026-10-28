@@ -264,3 +264,11 @@ select option,select optgroup{background-color:var(--dropdown-bg)}
 
 /* Keep the active no-radar drill readable across the full workout area. */
 #view-overspeed .overspeed-drill-card:has(.overspeed-no-radar-step){grid-column:1 / -1}#view-overspeed .os-no-radar-option,#view-overspeed .overspeed-no-radar-check{display:flex;align-items:center;gap:14px}
+
+.player-access-message{padding:12px 16px;background:#eef7fc;border:1px solid #c8e1ed;border-radius:8px;font-size:14px;color:#28455a}.player-access-message button{margin-left:12px}section[data-player-access="locked"] [inert]{opacity:.65}
+
+/* The active drill spans the page; its two sides share that width equally. */
+#view-overspeed .os-session-drills>.overspeed-drill-card{grid-column:1 / -1;min-width:0}
+#view-overspeed .overspeed-paired-forms{width:100%;min-width:0}
+#view-overspeed .overspeed-paired-forms>*{min-width:0}
+#view-overspeed .overspeed-speed-inputs label,#view-overspeed .overspeed-speed-inputs input{min-width:0;width:100%;box-sizing:border-box}

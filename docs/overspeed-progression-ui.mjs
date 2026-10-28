@@ -57,7 +57,7 @@ export function startOverSpeedProgression({players,scope,element:$,download,onCh
     try{if(['guided_bat_speed','guided_no_radar'].includes(existing?.completion_method)&&existing.session_date!==$('os-session-date').value)throw Error('Keep this guided workout’s saved date. Choose another date outside edit mode to start a new workout.');if(existing&&existing.stage_id!==$('os-stage').value)throw Error('This date already belongs to another training phase. Edit that workout or choose another date.');const draft=overspeedSessionDraft($('os-stage').value),drills=draft.drills.map(d=>({...d,completed:completed.get(d.drill_id)===true})),stamp=new Date().toISOString();let hash=2166136261;for(const c of player())hash=Math.imul(hash^c.charCodeAt(0),16777619)>>>0;
       record={...existing,...draft,id:existing?.id??`os-session-${hash.toString(16)}-${$('os-session-date').value}`,player:player(),session_date:$('os-session-date').value,drills,completion_status:drills.every(d=>d.completed)?'completed':'partial',completion_confirmed:true,notes:$('os-session-notes').value.trim(),created_at:existing?.created_at??stamp,updated_at:stamp};persist(upsertOverSpeedSession(records,record,players,today));
     }catch(error){$('os-session-error').hidden=false;$('os-session-error').textContent=error.message;return;}
-    clearDraft();render();const progress=state(),stage=progress.stages.find(s=>s.id===record.stage_id),ignored=stage.ignored.find(item=>item.id===record.id);$('os-session-announcement').textContent=`${existing?'Updated':'Saved'} ${record.completion_status==='completed'?'full':'partial'} workout.${ignored?' Not credited: '+ignored.reason:''} ${saved?'Saved on this device.':'Export before closing.'}`;
+    clearDraft();render();const progress=state(),stage=progress.stages.find(s=>s.id===record.stage_id),ignored=stage.ignored.find(item=>item.id===record.id);$('os-session-announcement').textContent=`${existing?'Updated':'Saved'} ${record.completion_status==='completed'?'full':'partial'} workout.${ignored?' Not credited: '+ignored.reason:''} ${saved?'Waiting for Google Sheet confirmation.':'Export before closing.'}`;
   }
   $('os-session-save').addEventListener('click',saveSession);
   $('os-session-cancel').addEventListener('click',()=>{if(dirty&&!window.confirm('Discard unsaved workout changes?'))return;clearDraft();render();});
@@ -91,7 +91,7 @@ export function startOverSpeedProgression({players,scope,element:$,download,onCh
       persist(next);render();
       const progress=state(),phase=progress.stages.find(s=>s.id===record.stage_id),ignored=phase.ignored.find(item=>item.id===record.id);
       const message=record.completion_status==='completed'?'Drill complete. All drills saved: workout complete.':'Drill complete. Partial workout saved; finish the remaining drills.';
-      $('os-session-announcement').textContent=message+(ignored?' No cycle credit: '+ignored.reason:'')+(saved?' Saved on this device.':' Export workout history before closing; device saving is unavailable.');
+      $('os-session-announcement').textContent=message+(ignored?' No cycle credit: '+ignored.reason:'')+(saved?' Waiting for Google Sheet confirmation.':' Export workout history before closing; device saving is unavailable.');
       return {drill_complete:true,workout_status:record.completion_status,message:$('os-session-announcement').textContent};
     };
   }
@@ -110,7 +110,7 @@ export function startOverSpeedProgression({players,scope,element:$,download,onCh
     return ()=>{
       persist(update.next);if(player()===speed.player){dirty=false;editing=null;lastDate=speed.session_date;$('os-session-date').value=speed.session_date;selectedStage=stage.id;viewProgram=speed.program_id;$('os-stage').value=stage.id;render();}
       const record=update.record,drill=record?.drills.find(d=>d.drill_id===speed.drill_id),message=!record?'Guided workout progress removed.':record.completion_status==='completed'?'All prescribed steps saved. Workout complete.':drill?.completed?'Drill complete. Continue to the next drill.':'Step saved. Continue to the next side or bat setup.';
-      $('os-session-announcement').textContent=message+(saved?' Saved on this device.':' Export workout history before closing; device saving is unavailable.');return {drill_complete:drill?.completed??false,workout_status:record?.completion_status??null,message:$('os-session-announcement').textContent};
+      $('os-session-announcement').textContent=message+(saved?' Waiting for Google Sheet confirmation.':' Export workout history before closing; device saving is unavailable.');return {drill_complete:drill?.completed??false,workout_status:record?.completion_status??null,message:$('os-session-announcement').textContent};
     };
   }
   function completeWithoutRadar(stepId,checked){
@@ -124,5 +124,5 @@ export function startOverSpeedProgression({players,scope,element:$,download,onCh
     catch(error){$('os-sync-status').textContent=error.message;}finally{busy=false;$('os-sync').disabled=false;}
   }
   $('os-sync').addEventListener('click',()=>void sync());render();
-  return {clearPlayer(name){if(!players.includes(name))return false;persist(records.filter(r=>r.player!==name));if(player()===name){clearDraft();render();}return true;},records:()=>[...records].sort((a,b)=>a.session_date.localeCompare(b.session_date)),canUse:(programId,p,date)=>Boolean(p)&&(date||today)<=today&&canUseOverSpeedProgram(records,p,programId,date||today),confirmPlayerChange:()=>!dirty||window.confirm('Switch players and clear unsaved workout completion changes?'),playerChanged:()=>{clearDraft();render();},setProgram:id=>{viewProgram=id;renderChecklist();},attachSpeedForms:callback=>{mountSpeeds=callback;renderChecklist();},prepareSpeedCompletion,prepareGuidedChange,guidedContext,completeWithoutRadar,setContextGuard:guard=>{contextGuard=guard;},sync};
+  return {replaceRecords(next){validateOverSpeedSessions(next,players);records=next;store();render();onProgressChange?.();},clearPlayer(name){if(!players.includes(name))return false;persist(records.filter(r=>r.player!==name));if(player()===name){clearDraft();render();}return true;},records:()=>[...records].sort((a,b)=>a.session_date.localeCompare(b.session_date)),canUse:(programId,p,date)=>Boolean(p)&&(date||today)<=today&&canUseOverSpeedProgram(records,p,programId,date||today),confirmPlayerChange:()=>!dirty||window.confirm('Switch players and clear unsaved workout completion changes?'),playerChanged:()=>{clearDraft();render();},setProgram:id=>{viewProgram=id;renderChecklist();},attachSpeedForms:callback=>{mountSpeeds=callback;renderChecklist();},prepareSpeedCompletion,prepareGuidedChange,guidedContext,completeWithoutRadar,setContextGuard:guard=>{contextGuard=guard;},sync};
 }

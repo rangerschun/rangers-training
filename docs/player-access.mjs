@@ -8,13 +8,13 @@ export async function jerseyCodeMatches(player,code,hashes,crypto=globalThis.cry
  const digest=await crypto.subtle.digest('SHA-256',bytes);
  return Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('')===hashes[player];
 }
-export function startPlayerAccess({players,hashes,element:$,matches=jerseyCodeMatches}){
+export function startPlayerAccess({players,hashes,element:$,matches=jerseyCodeMatches,cloudStatus=null,onRetry=()=>{}}){
  const verified=new Set(),accepted=new Map(),allowed=new WeakSet();let pending=null,attempt=0;
  const dialog=$('player-access-dialog'),input=$('player-access-code'),error=$('player-access-error'),submit=$('player-access-submit');
  function render(){
   for(const [view,id]of Object.entries(TAB_PLAYER_IDS)){
-   const select=$(id),section=$('view-'+view),unlocked=verified.has(select.value),bar=[...section.children].find(n=>n.classList.contains('tab-player-bar'));
-   section.dataset.playerAccess=unlocked?'verified':'locked';$('access-message-'+view).hidden=unlocked;
+   const select=$(id),section=$('view-'+view),unlocked=verified.has(select.value)&&(!cloudStatus||cloudStatus(select.value).ready),bar=[...section.children].find(n=>n.classList.contains('tab-player-bar'));
+   section.dataset.playerAccess=unlocked?'verified':'locked';const message=$('access-message-'+view);message.hidden=unlocked&&!cloudStatus;if(cloudStatus&&verified.has(select.value)){message.replaceChildren(document.createTextNode(cloudStatus(select.value).message));if(!unlocked){const retry=document.createElement('button');retry.type='button';retry.className='secondary-button';retry.textContent=cloudStatus(select.value).conflict?'Review waiting changes':'Retry Google Sheet';retry.addEventListener('click',()=>onRetry(select.value,view));message.append(retry);}}
    for(const child of section.children)if(child!==bar&&!child.classList.contains('page-heading')&&!child.classList.contains('player-access-message'))child.inert=!unlocked;
    if(bar)for(const field of bar.children)if(!field.contains(select))field.inert=!unlocked;
   }
@@ -36,14 +36,14 @@ export function startPlayerAccess({players,hashes,element:$,matches=jerseyCodeMa
   },true);
   // Direct history/coach actions can set a player without dispatching a picker change.
   $('view-'+view).addEventListener('submit',event=>{
-   if(verified.has(select.value))return;
-   event.preventDefault();event.stopImmediatePropagation();if(select.value)request(select,select.value);
+   if(verified.has(select.value)&&(!cloudStatus||cloudStatus(select.value).ready))return;
+   event.preventDefault();event.stopImmediatePropagation();if(verified.has(select.value)){render();return;}if(select.value)request(select,select.value);
   },true);
  }
  $('player-access-form').addEventListener('submit',async event=>{
   event.preventDefault();if(!pending||submit.disabled)return;
   const selected=pending,token=++attempt;submit.disabled=true;error.hidden=true;
-  let valid=false;try{valid=await matches(selected.name,input.value,hashes);}catch{if(token===attempt){error.textContent='The password check could not run. Please reload this page and try again.';error.hidden=false;submit.disabled=false;}return;}
+  let valid=false;try{valid=await matches(selected.name,input.value,hashes);}catch(problem){if(token===attempt){error.textContent=cloudStatus?(problem?.message??'Google Sheet could not load. Check your connection and try again.'):'The password check could not run. Please reload this page and try again.';error.hidden=false;submit.disabled=false;}return;}
   if(token!==attempt)return;
   if(!valid){error.textContent='That password does not match. Try again.';error.hidden=false;submit.disabled=false;input.value='';input.focus();return;}
   verified.add(selected.name);dialog.close();pending=null;input.value='';submit.disabled=false;
@@ -52,5 +52,5 @@ export function startPlayerAccess({players,hashes,element:$,matches=jerseyCodeMa
  });
  $('player-access-cancel').addEventListener('click',dismiss);
  dialog.addEventListener('cancel',event=>{event.preventDefault();dismiss();});
- render();return {activate(view){const id=TAB_PLAYER_IDS[view];if(!id)return;render();const select=$(id);if(select.value&&!verified.has(select.value))request(select,select.value);},isVerified:player=>verified.has(player)};
+ render();return {refresh:render,revoke(player){verified.delete(player);render();},activate(view){const id=TAB_PLAYER_IDS[view];if(!id)return;render();const select=$(id);if(select.value&&!verified.has(select.value))request(select,select.value);},isVerified:player=>verified.has(player)};
 }

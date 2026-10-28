@@ -45,7 +45,7 @@ export function startConcentrationGrid({element,players=[],flow,readRemote,getDa
     const savedRecords=allRecords(),all=concentrationResults(savedRecords),mine=concentrationResults(savedRecords,player),average=concentrationAverage(mine);
     const teamCount=remoteSummary?.session_count??all.length,teamAverage=remoteSummary?remoteSummary.average_ms:concentrationAverage(all);
     const chart=element('concentration-chart');chart.replaceChildren();
-    const data=[['Current time',mine[0]?.elapsed_ms??null,mine.length?'Latest completed grid':'Complete your first grid'],['Your average',average,`${mine.length} all-time completed grids on this device`],['Team average',teamAverage,`${teamCount} all-time completed grids · ${remoteSummary?'coach sheet':'this device only'}`]],max=Math.max(1,...data.map(d=>d[1]??0));
+    const data=[['Current time',mine[0]?.elapsed_ms??null,mine.length?'Latest completed grid':'Complete your first grid'],['Your average',average,`${mine.length} all-time completed grids from Google Sheet`],['Team average',teamAverage,`${teamCount} all-time completed grids · ${remoteSummary?'coach sheet':'cached Sheet results'}`]],max=Math.max(1,...data.map(d=>d[1]??0));
     data.forEach(([label,value,note],i)=>{const row=make('div','concentration-chart-row'),heading=make('div','concentration-chart-label');heading.append(make('strong','',label),make('span','',value===null?'—':concentrationTime(value)));const track=make('div','concentration-bar-track'),bar=make('div','concentration-bar concentration-bar-'+i);bar.style.height=value===null?'0%':Math.max(.5,value/max*100)+'%';track.setAttribute('aria-hidden','true');track.append(bar);row.append(heading,track,make('small','',note));chart.append(row);});
     const history=element('concentration-history');history.replaceChildren();if(!player||!mine.length)history.append(make('p','field-help','Complete a grid to start collecting your times.'));
     else{const list=make('ol','concentration-results');for(const result of mine)list.append(make('li','',`${result.session_date} · ${concentrationTime(result.elapsed_ms)}`));history.append(list);}
@@ -54,13 +54,13 @@ export function startConcentrationGrid({element,players=[],flow,readRemote,getDa
   async function refreshTeam(){
     if(refreshing||!player||!readRemote)return;refreshing=true;const version=++refreshVersion;element('concentration-refresh').disabled=true;element('concentration-team-status').textContent='Refreshing team average…';
     try{const summary=await readRemote();if(!summary||!Number.isInteger(summary.session_count)||summary.session_count<0||(summary.session_count>0&&(!Number.isFinite(summary.average_ms)||summary.average_ms<=0||summary.average_ms>86400000)))throw Error('Invalid team average');if(version!==refreshVersion)return;remoteSummary=summary;element('concentration-team-status').textContent='Team average uses all completed grids received by the coach sheet across devices. Newly saved times may appear after syncing.';}
-    catch{if(version===refreshVersion){remoteSummary=null;element('concentration-team-status').textContent='Team connection unavailable. The team bar currently includes all completed grids on this device only. Personal times remain saved here.';}}
+    catch{if(version===refreshVersion){remoteSummary=null;element('concentration-team-status').textContent='Team connection unavailable. The team bar currently includes all completed grids on cached Sheet results. Personal times remain saved here.';}}
     finally{refreshing=false;element('concentration-refresh').disabled=false;results();}
   }
   function saveTime(){
     if(savedId||game.next!==101||!player)return;
     if(dailyUsage().remaining===0){refreshDaily();element('concentration-retry').hidden=true;return;}
-    try{const record=concentrationRecord(player,game.elapsed(),{date:calendarNow()});flow.commit([...flow.records(),record]);savedId=record.id;element('concentration-retry').hidden=true;status.textContent=`Grid complete! ${concentrationTime(game.elapsed())} saved for ${player}.${dailyUsage().remaining===0?' Daily maximum of 7 completed grids reached.':''}`;results();void refreshTeam();}
+    try{const record=concentrationRecord(player,game.elapsed(),{date:calendarNow()});flow.commit([...flow.records(),record]);savedId=record.id;element('concentration-retry').hidden=true;status.textContent=`Grid complete! ${concentrationTime(game.elapsed())} waiting for Google Sheet confirmation for ${player}.${dailyUsage().remaining===0?' Daily maximum of 7 completed grids reached.':''}`;results();void refreshTeam();}
     catch(error){status.textContent=`Time not saved: ${error.message}`;element('concentration-retry').hidden=false;}
   }
   picker.addEventListener('change',()=>{
@@ -109,7 +109,7 @@ export function startConcentrationGrid({element,players=[],flow,readRemote,getDa
   element('concentration-restart').addEventListener('click',()=>{if(!player||dailyUsage().remaining===0){refreshDaily();return;}game.restart();render();});
   render();results();
   const onDailyCheck=()=>refreshDaily();window.addEventListener?.('focus',onDailyCheck);window.addEventListener?.('storage',onDailyCheck);
-  return {game,refreshTeam,refreshDaily,destroy(){stop();clearTimeout(dailyResetTimer);window.removeEventListener?.('focus',onDailyCheck);window.removeEventListener?.('storage',onDailyCheck);}};
+  return {refreshRecords(){results();refreshDaily();},game,refreshTeam,refreshDaily,destroy(){stop();clearTimeout(dailyResetTimer);window.removeEventListener?.('focus',onDailyCheck);window.removeEventListener?.('storage',onDailyCheck);}};
 }
 
 export const CONCENTRATION_SOURCE='concentration-grid-100';

@@ -1,6 +1,6 @@
 // Integrated by app.mjs after the player device journals have loaded.
 // Apps Script is the only remote transport. A static preview never claims submission.
-export function startTeamJournal({players,scope,getRecords,element,download,changes,toCsv,validate}){
+export function startTeamJournal({players,scope,getRecords,element,download,changes,toCsv,validate,cloud=false,getRevision=()=>null,onPending=()=>{}}){
   const key='rangers-coach-journal-v1-'+scope;
   let events=[],readable=true,saving=true,busy=false,credentials=null,lastError='',publicEntry=false,settingsReady=false;
   const remote=Boolean(globalThis.google?.script?.run);
@@ -14,13 +14,13 @@ export function startTeamJournal({players,scope,getRecords,element,download,chan
   const makeId=()=>globalThis.crypto?.randomUUID?.()??`entry-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   function persist(){if(!readable)return;try{localStorage.setItem(key,JSON.stringify({version:1,events}));saving=true;}catch{saving=false;lastError='Device storage is full or unavailable. Export entries before closing.';}}
   function render(){
-    const pending=events.filter(e=>!e.received_at),count=pending.length;
+    const pending=events.filter(e=>!e.received_at),count=pending.length;if(cloud){element('team-journal-status').textContent=`${count} change(s) waiting for Google Sheet confirmation. Player histories load from this same Sheet after password entry.`;element('team-journal-summary').textContent=`${events.length-count} changes confirmed · ${count} waiting`;element('team-journal-auth').hidden=true;element('team-journal-export').disabled=!events.length;return;}
     element('team-journal-status').textContent=lastError||(busy?'Sending entries to coach…':remote?(publicEntry?`${count} entr${count===1?'y':'ies'} waiting · saved entries send automatically; no player code needed.`:!settingsReady?'Checking the coach connection…':credentials?`${count} entr${count===1?'y':'ies'} waiting · connected as ${credentials.player}.`:'Enter your coach-issued code to send your saved entries.'):'Coach connection pending · entries are saved on this device.');
     element('team-journal-summary').textContent=`${events.length} saved change${events.length===1?'':'s'} · ${events.length-count} confirmed by the coach sheet · ${count} waiting${saving?'':' · device saving unavailable'}`;
     element('team-journal-export').disabled=!events.length;element('team-connect').disabled=!remote||busy;element('team-journal-auth').hidden=!remote||!settingsReady;
   }
   async function flush(){
-    if(!remote||!settingsReady||(!publicEntry&&!credentials)||busy)return;
+    if(cloud||!remote||!settingsReady||(!publicEntry&&!credentials)||busy)return;
     const selected=publicEntry?{player:events.find(e=>!e.received_at)?.player}:credentials,batch=events.filter(e=>!e.received_at&&e.player===selected.player).slice(0,5);if(!batch.length){render();return;}
     busy=true;lastError='';render();
     try{
@@ -39,7 +39,7 @@ export function startTeamJournal({players,scope,getRecords,element,download,chan
   function record(kind,before,after){
     const created=changes(kind,before,after,makeId,new Date().toISOString());
     if(!created.length)return;
-    for(const event of created)validate(event,players);events.push(...created);persist();render();void flush();
+    for(const event of created){validate(event,players);if(cloud)event.base_revision=getRevision(event.player,event.kind,event.record.id);}events.push(...created);persist();render();if(cloud)onPending();else void flush();
   }
   // Bring existing device records into this one journal once, without inventing earlier changes.
   for(const[kind,records]of Object.entries(getRecords())){
@@ -59,16 +59,16 @@ export function startTeamJournal({players,scope,getRecords,element,download,chan
   }
   window.addEventListener('online',()=>void flush());render();
   async function readTeamSchedule(){
-    if(remote&&!settingsReady)await settingsLoaded;
+    if(remote&&!settingsReady&&!cloud)await settingsLoaded;
     if(!remote||!settingsReady||(!publicEntry&&!credentials))throw Error('The coach connection is not ready. Try again shortly.');
     return new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('Schedule refresh timed out.')),25000);globalThis.google.script.run.withSuccessHandler(value=>{clearTimeout(timer);resolve(value);}).withFailureHandler(()=>{clearTimeout(timer);reject(Error('Schedule refresh was not confirmed. Try again.'));}).getTeamSchedule(publicEntry?{}:{player:credentials.player,code:credentials.code});});
   }
   async function readConcentrationSummary(){
-    if(remote&&!settingsReady)await settingsLoaded;
-    if(!remote||!settingsReady||(!publicEntry&&!credentials))throw Error('The team connection is not ready.');
-    return new Promise((resolve,reject)=>{globalThis.google.script.run.withSuccessHandler(resolve).withFailureHandler(()=>reject(Error('The team average could not be refreshed.'))).getConcentrationSummary(publicEntry?{}:{player:credentials.player,code:credentials.code});});
+    if(remote&&!settingsReady&&!cloud)await settingsLoaded;
+    if(!remote||!cloud&&(!settingsReady||(!publicEntry&&!credentials)))throw Error('The team connection is not ready.');
+    return new Promise((resolve,reject)=>{globalThis.google.script.run.withSuccessHandler(resolve).withFailureHandler(()=>reject(Error('The team average could not be refreshed.'))).getConcentrationSummary(cloud||publicEntry?{}:{player:credentials.player,code:credentials.code});});
   }
-  if(remote){
+  if(remote&&!cloud){
     const timer=setTimeout(()=>{finishSettings(false);lastError='The coach connection did not load. Reload to retry; entries remain on this device.';render();},25000);
     globalThis.google.script.run.withSuccessHandler(settings=>{
       clearTimeout(timer);settingsReady=true;publicEntry=settings?.public_player_entry===true;
@@ -87,5 +87,5 @@ export function startTeamJournal({players,scope,getRecords,element,download,chan
     let history=events;try{const stored=JSON.parse(localStorage.getItem(key)||'null');if(stored?.version===1&&Array.isArray(stored.events))history=[...history,...stored.events];}catch{}
     return history.filter(e=>e?.kind==='workout'&&e.record?.source_template_id==='concentration-grid-100').map(e=>e.record);
   }
-  return {record,readOverSpeedProgress,readTeamSchedule,readConcentrationSummary,concentrationHistory};
+  return {record,readOverSpeedProgress,readTeamSchedule,readConcentrationSummary,concentrationHistory,pending:player=>events.filter(e=>!e.received_at&&e.player===player),rebase(player,revisions){events=events.map(e=>!e.received_at&&e.player===player?{...e,base_revision:revisions[e.kind+'|'+e.record.id]??null}:e);persist();},accept(accepted,revisions){const received=new Map(accepted.map(a=>[a.event_id,a.received_at])),keys=new Set(events.filter(e=>received.has(e.event_id)).map(e=>e.kind+'|'+e.record.id));events=events.map(e=>received.has(e.event_id)?{...e,received_at:received.get(e.event_id)}:!e.received_at&&keys.has(e.kind+'|'+e.record.id)?{...e,base_revision:revisions[e.kind+'|'+e.record.id]??null}:e);persist();render();}};
 }

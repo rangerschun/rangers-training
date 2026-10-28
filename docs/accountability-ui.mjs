@@ -1,6 +1,6 @@
 import { plateLoadDescription } from './workout-load.mjs?v=schedule-auto-refresh-20261025';
 import { formatWorkoutDetails } from './library-tools.mjs?v=compact-workouts-20261025';
-export function startWorkoutAccountability({players,getRecords,element,download,summarize,toCsv,weekFor,onSessionAction}){
+export function startWorkoutAccountability({players,getRecords,element,download,summarize,toCsv,weekFor,onSessionAction,getCoachCode=()=>''}){
   const node=(tag,className,text)=>{const n=document.createElement(tag);if(className)n.className=className;if(text!==undefined)n.textContent=text;return n;};
   const remote=Boolean(globalThis.google?.script?.run);
   let snapshot=null,coachCode='',busy=false,current=null;
@@ -52,7 +52,7 @@ export function startWorkoutAccountability({players,getRecords,element,download,
   async function loadShared(){
     if(!remote||busy)return;busy=true;element('accountability-refresh').disabled=true;element('accountability-refresh').textContent='Loading coach records…';
     try{
-      const code=element('accountability-code').value.trim()||coachCode;
+      const code=element('accountability-code').value.trim()||coachCode||getCoachCode();
       const response=await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('Coach records did not load. Your existing view is unchanged; try again.')),25000);globalThis.google.script.run.withSuccessHandler(value=>{clearTimeout(timer);resolve(value);}).withFailureHandler(()=>{clearTimeout(timer);reject(Error('Coach access was not confirmed. Sign in as the coach or enter the coach code from the private sheet.'));}).getCoachWorkouts({code});});
       if(!response||!Array.isArray(response.players)||!Array.isArray(response.records)||typeof response.as_of!=='string')throw Error('The coach response could not be verified.');
       summarize(response.records,response.players,{from:element('accountability-from').value,to:element('accountability-to').value});snapshot=response;coachCode=code;element('accountability-code').value='';render();
@@ -64,5 +64,5 @@ export function startWorkoutAccountability({players,getRecords,element,download,
   element('accountability-export').addEventListener('click',()=>{if(current)download('rangers-workout-activity.csv',toCsv(current));});
   element('accountability-coach-form').addEventListener('submit',event=>{event.preventDefault();void loadShared();});
   element('accountability-device').addEventListener('click',()=>{snapshot=null;coachCode='';element('accountability-code').value='';render();});
-  render();return {refresh:()=>{if(!snapshot)render();}};
+  render();return {applyShared(value,code){snapshot=value;coachCode=code;render();},refresh:()=>{if(!snapshot)render();}};
 }
