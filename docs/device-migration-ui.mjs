@@ -1,5 +1,6 @@
+import { trainingStorage } from './training-storage.mjs';
 import {OLD_RANGERS_ORIGIN,NEW_RANGERS_ORIGIN,DEVICE_COPY_CHANNEL,copyDeviceEntries} from './device-migration-core.mjs?v=rangers-organization-20261025';
-export function startDeviceMigration({scope,element:$,window=globalThis.window,storage=globalThis.localStorage,crypto=globalThis.crypto}){
+export function startDeviceMigration({scope,element:$,window=globalThis.window,storage=trainingStorage,crypto=globalThis.crypto}){
  const notice=$('site-address-notice'),message=$('site-address-message'),button=$('device-copy-entries'),again=$('device-copy-again'),status=$('device-copy-status'),marker='rangers-origin-migration-v1-'+scope;
  let pending=null;
  const origin=window?.location?.origin;

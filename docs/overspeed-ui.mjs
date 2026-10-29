@@ -1,3 +1,4 @@
+import { trainingStorage } from './training-storage.mjs';
 import { overSpeedSteps,overSpeedStepProgress } from './overspeed.mjs?v=schedule-auto-refresh-20261025';
 const OVERSPEED_BAT_VISUALS=Object.freeze({
   base:{src:'./assets/overspeed/bat-base.png',label:'Base bat only',alt:'Velo OverSpeed base bat with no sleeves'},
@@ -10,9 +11,9 @@ export function startOverSpeed({library,players,scope,element,download,validate,
   const entryKey=(p,d,side='dominant')=>side==='dominant'?`${p.id}/${d.id}`:`${p.id}/${d.id}/${side}`;
   const playerSelect=element('overspeed-player'),programSelect=element('overspeed-program');const prompt=node('option','','Choose a player');prompt.value='';playerSelect.replaceChildren(prompt);for(const name of players){const option=node('option','',name);option.value=name;playerSelect.append(option);}
   for(const family of ['overspeed','counterweight']){const group=node('optgroup');group.label=family==='overspeed'?'OverSpeed':'Counterweight';for(const p of library.programs.filter(p=>p.family===family)){const option=node('option','',p.name);option.value=p.id;group.append(option);}programSelect.append(group);}
-  try{const value=localStorage.getItem(key);if(value){const parsed=JSON.parse(value);if(parsed.version!==1||!Array.isArray(parsed.records))throw Error();const ids=new Set();for(const r of parsed.records){validate(r,players);if(ids.has(r.id))throw Error();ids.add(r.id);}records=parsed.records;}}
+  try{const value=trainingStorage.getItem(key);if(value){const parsed=JSON.parse(value);if(parsed.version!==1||!Array.isArray(parsed.records))throw Error();const ids=new Set();for(const r of parsed.records){validate(r,players);if(ids.has(r.id))throw Error();ids.add(r.id);}records=parsed.records;}}
   catch{readable=false;saved=false;element('overspeed-storage').textContent='Saved bat-speed records could not be read. Existing data is preserved; new records stay in this page. Export before closing.';}
-  function persist(next){onChange(records,next);records=next;if(readable){try{localStorage.setItem(key,JSON.stringify({version:1,records}));saved=true;element('overspeed-storage').textContent='';}catch{saved=false;element('overspeed-storage').textContent='Device saving is unavailable. Export your bat-speed records before closing.';}}}
+  function persist(next){onChange(records,next);records=next;if(readable){try{trainingStorage.setItem(key,JSON.stringify({version:1,records}));saved=true;element('overspeed-storage').textContent='';}catch{saved=false;element('overspeed-storage').textContent='Device saving is unavailable. Export your bat-speed records before closing.';}}}
   function refreshAccess(){
     const player=playerSelect.value,date=element('os-session-date').value;
     for(const group of programSelect.children)for(const option of group.tagName==='OPTGROUP'?group.children:[]){option.disabled=!player||!canUseProgram(option.value,player,date);option.textContent=programs.get(option.value).name+(option.disabled?' · Locked':'');}programSelect.disabled=!player;

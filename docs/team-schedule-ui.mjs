@@ -1,3 +1,4 @@
+import { trainingStorage } from './training-storage.mjs';
 import {parseTeamCalendar,selectTeamEvents,formatTeamEventTime,scheduleDateKey,teamCalendarMonth,teamEventOnDate,publicTeamCalendarSnapshot} from './team-schedule.mjs?v=calendar-location-20261025';
 export function teamCalendarServiceUrl(endpoint){
  const url=new URL(endpoint);
@@ -15,7 +16,7 @@ export function readPublicTeamSchedule(endpoint,{document=globalThis.document,ho
   timer=setTimeout(()=>{clean();reject(Error('The calendar connection timed out.'));},timeoutMs);document.head.append(script);
  });
 }
-export function startTeamSchedule({config,element:$,download,readRemote,readPublic=readPublicTeamSchedule,fetcher=globalThis.fetch,now=()=>Date.now(),storage=globalThis.localStorage}){
+export function startTeamSchedule({config,element:$,download,readRemote,readPublic=readPublicTeamSchedule,fetcher=globalThis.fetch,now=()=>Date.now(),storage=trainingStorage}){
  const make=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n;},zone='America/Toronto';let calendar=null,payload=null,busy=false,layout='grid',selectedDate=scheduleDateKey(now(),zone),monthKey=selectedDate.slice(0,7);let [year,month]=monthKey.split('-').map(Number);month--;
  const hasFeed=config&&/^https:\/\/ical-cdn\.teamsnap\.com\/team_schedule\/[a-zA-Z0-9-]+\.ics$/.test(config.feed_url),valid=hasFeed||config?.remote===true;
  const postedSubscription=typeof config?.subscription_url==='string'&&/^https:\/\/ical-cdn\.teamsnap\.com\/team_schedule\/[a-zA-Z0-9-]+\.ics$/.test(config.subscription_url)?config.subscription_url:null,subscriptionUrl=postedSubscription||(hasFeed?config.feed_url:null);

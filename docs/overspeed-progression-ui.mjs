@@ -1,3 +1,4 @@
+import { trainingStorage } from './training-storage.mjs';
 import { OVERSPEED_LIBRARY } from './overspeed-library.mjs?v=schedule-auto-refresh-20261025';
 import { OVERSPEED_STAGES,overspeedSessionDraft,validateOverSpeedSessions,overspeedProgression,upsertOverSpeedSession,canUseOverSpeedProgram,overSpeedSessionsCsv,guidedOverSpeedWorkout,unmeasuredOverSpeedWorkout } from './overspeed-progression.mjs?v=schedule-auto-refresh-20261025';
 
@@ -5,10 +6,10 @@ export function startOverSpeedProgression({players,scope,element:$,download,onCh
   const make=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n;},option=(value,text)=>{const n=make('option','',text);n.value=value;return n;};
   const now=new Date(),today=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`,key='rangers-overspeed-sessions-v1-'+scope;
   let records=[],readable=true,saved=true,dirty=false,editing=null,selectedStage='',busy=false,viewProgram='',mountSpeeds=null,contextGuard=()=>true,lastDate=today;const completed=new Map();const player=()=>$('overspeed-player').value;
-  try{const raw=localStorage.getItem(key);if(raw){const data=JSON.parse(raw);if(data.version!==1)throw Error();validateOverSpeedSessions(data.records,players);records=data.records;}}
+  try{const raw=trainingStorage.getItem(key);if(raw){const data=JSON.parse(raw);if(data.version!==1)throw Error();validateOverSpeedSessions(data.records,players);records=data.records;}}
   catch{readable=false;saved=false;$('os-protocol-storage').textContent='Saved training progress could not be read. Existing data is preserved. New entries stay in this page; export before closing.';}
   $('os-session-date').value=today;$('os-sync').hidden=!globalThis.google?.script?.run;
-  function store(){if(readable)try{localStorage.setItem(key,JSON.stringify({version:1,records}));saved=true;$('os-protocol-storage').textContent='';}catch{saved=false;$('os-protocol-storage').textContent='Device saving is unavailable. Export your completed-workout records before closing.';}}
+  function store(){if(readable)try{trainingStorage.setItem(key,JSON.stringify({version:1,records}));saved=true;$('os-protocol-storage').textContent='';}catch{saved=false;$('os-protocol-storage').textContent='Device saving is unavailable. Export your completed-workout records before closing.';}}
   function persist(next){const before=records;records=next;store();onChange?.(before,next);onProgressChange?.();}
   function state(){return player()?overspeedProgression(records,player(),today):null;}
   function clearDraft(){lastDate=today;editing=null;dirty=false;selectedStage='';viewProgram='';completed.clear();$('os-session-date').value=today;$('os-session-notes').value='';$('os-session-error').hidden=true;$('os-session-cancel').hidden=true;$('os-session-save').textContent='Save workout notes';}

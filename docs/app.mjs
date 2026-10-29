@@ -1,3 +1,5 @@
+import { TRAINING_BACKEND_CONFIG } from './training-config.mjs';
+import { trainingStorage } from './training-storage.mjs';
 import {defaultPlyoballBrand} from './plyoball-defaults.mjs?v=schedule-auto-refresh-20261025';
 import {startSheetSync} from './sheet-sync.mjs?v=schedule-auto-refresh-20261025';
 import {startGameChangerCoach} from './gamechanger-coach.mjs?v=schedule-auto-refresh-20261025';
@@ -31,7 +33,7 @@ import { DRILLS, COLORS, getTargets, getDubsReferences, DUBS_BALLS, getMarvRefer
 import { WORKOUT_LIBRARY } from './library.mjs?v=schedule-auto-refresh-20261025';
 import { isWorkoutVideoUrl } from './library-tools.mjs?v=compact-workouts-20261025';
 
-const GOOGLE_BACKEND_CONFIG = {...{"url": "https://script.google.com/macros/s/AKfycby83qDRwh5DzSU-h-45CdqJBGbO8NcVzssZnTpore_FH8psVHYUtxRpEHIgiJISOISL0g/exec", "origin": "https://andrewschun.github.io"},origin:globalThis.location?.origin==='https://rangerschun.github.io'?'https://rangerschun.github.io':'https://andrewschun.github.io'};
+const GOOGLE_BACKEND_CONFIG = TRAINING_BACKEND_CONFIG;
 installGoogleBridge(GOOGLE_BACKEND_CONFIG);
 const $ = id => document.getElementById(id);
 const names = Object.fromEntries(COLORS.map(color => [color, color[0].toUpperCase() + color.slice(1)]));
@@ -56,7 +58,7 @@ let overspeedLog = null;
 let workoutOverview = null;
 let teamJournal = null;
 let sheetSync=null,hydratingSheet=false,coachSheetCode='';
-let playerSettings=[];try{playerSettings=JSON.parse(localStorage.getItem('rangers-player-settings-v1')||'[]');}catch{}
+let playerSettings=[];try{playerSettings=JSON.parse(trainingStorage.getItem('rangers-player-settings-v1')||'[]');}catch{}
 let tabPlayers = null;
 let axePrograms = null;
 let rows = null;
@@ -74,9 +76,9 @@ const PLAYER_JERSEY_HASHES = {"Aidan": "d820eaab4138ce6ed9d2bef9f85ab5be965c84f6
 let rosterHash=2166136261;
 for(const char of JSON.stringify(STORAGE_ROSTER_LABELS)) rosterHash=Math.imul(rosterHash^char.charCodeAt(0),16777619)>>>0;
 // Bring earlier device-only calendar dates and baselines into the retry journal once.
-try{if(!Array.isArray(playerSettings))playerSettings=[];const baselines=JSON.parse(localStorage.getItem('rangers-velocity-target-previous-baselines-v1')||'{}'),starts=JSON.parse(localStorage.getItem('rangers-throwing-calendar-v1-'+rosterHash.toString(16))||'null')?.starts??{};for(const player of PLAYER_LABELS)if(!playerSettings.some(r=>r.player===player)&&(starts[player]||Number(baselines[player])>0)){playerSettings.push({id:'settings-'+player,player,velocity_baseline_mph:Number(baselines[player])>0&&Number(baselines[player])<=150?Number(baselines[player]):null,baseline_source_key:null,throwing_start_date:starts[player]??null,updated_at:new Date().toISOString()});}}catch{}
+try{if(!Array.isArray(playerSettings))playerSettings=[];const baselines=JSON.parse(trainingStorage.getItem('rangers-velocity-target-previous-baselines-v1')||'{}'),starts=JSON.parse(trainingStorage.getItem('rangers-throwing-calendar-v1-'+rosterHash.toString(16))||'null')?.starts??{};for(const player of PLAYER_LABELS)if(!playerSettings.some(r=>r.player===player)&&(starts[player]||Number(baselines[player])>0)){playerSettings.push({id:'settings-'+player,player,velocity_baseline_mph:Number(baselines[player])>0&&Number(baselines[player])<=150?Number(baselines[player]):null,baseline_source_key:null,throwing_start_date:starts[player]??null,updated_at:new Date().toISOString()});}}catch{}
 startDeviceMigration({scope:rosterHash.toString(16),element:$});
-const demoResetState=prepareDemoReset(localStorage,rosterHash.toString(16),PLAYER_LABELS);
+const demoResetState=prepareDemoReset(trainingStorage,rosterHash.toString(16),PLAYER_LABELS);
 function populatePlayerDropdown(id) {
   const select = $(id);
   const prompt = el('option', '', 'Choose a player');
@@ -252,7 +254,7 @@ let blastRecords=[];
 let blastStorageReadable=true;
 let blastDeviceSaved=true;
 try {
-  const saved=localStorage.getItem(blastStorageKey);
+  const saved=trainingStorage.getItem(blastStorageKey);
   if(saved) {
     const parsed=JSON.parse(saved);
     if(parsed.version!==1 || !Array.isArray(parsed.records)) throw new Error('Unrecognized saved data.');
@@ -273,7 +275,7 @@ for(const bat of [...new Set(blastRecords.map(record=>record.bat).filter(Boolean
 function persistBlast(next) {
   if(!hydratingSheet)teamJournal?.record('blast',blastRecords,next);
   if(!blastStorageReadable) { blastRecords=next; blastDeviceSaved=false; return true; }
-  try { localStorage.setItem(blastStorageKey,JSON.stringify({version:1,records:next})); blastDeviceSaved=true; $('blast-storage-status').textContent=''; }
+  try { trainingStorage.setItem(blastStorageKey,JSON.stringify({version:1,records:next})); blastDeviceSaved=true; $('blast-storage-status').textContent=''; }
   catch { blastDeviceSaved=false; $('blast-storage-status').textContent='Device storage is unavailable or full. This change is kept only in the open page. Export the records before closing. Deletions could not be saved to the device.'; }
   blastRecords=next;
   return true;
@@ -374,13 +376,13 @@ for(let i=0;i<8;i++){
   const label=el('label','',`Throw ${i+1}`);label.htmlFor='baseball-throw-'+(i+1);const input=el('input');input.id=label.htmlFor;input.type='number';input.inputMode='decimal';input.min='0.000001';input.step='any';input.placeholder='—';input.autocomplete='off';input.setAttribute('aria-label',`Baseball throw ${i+1} in mph`);label.append(input,el('small','','MPH'));$('baseball-throws').append(label);
 }
 try{
-  const saved=localStorage.getItem(baseballStorageKey);
+  const saved=trainingStorage.getItem(baseballStorageKey);
   if(saved){const parsed=JSON.parse(saved);if(parsed.version!==1||!Array.isArray(parsed.records))throw new Error('Unrecognized session data.');const ids=new Set();for(const r of parsed.records){validateBaseballSession(r,PLAYER_LABELS);if(ids.has(r.id))throw new Error('Duplicate session identity.');ids.add(r.id);}baseballRecords=parsed.records;}
 }catch{baseballStorageReadable=false;baseballDeviceSaved=false;$('baseball-storage-status').textContent='Device storage could not be read. New sessions stay only in this open page; export before closing. Existing device data will not be overwritten.';}
 targetBaseline=startTargetBaseline({element:$,getRecords:()=>baseballRecords,getPlayer:()=>$('player').value,onChange:reason=>renderTargets(reason==='reset')});
 function persistBaseball(next){
   if(!hydratingSheet)teamJournal?.record('baseball',baseballRecords,next);
-  if(baseballStorageReadable){try{localStorage.setItem(baseballStorageKey,JSON.stringify({version:1,records:next}));baseballDeviceSaved=true;$('baseball-storage-status').textContent='';}catch{baseballDeviceSaved=false;$('baseball-storage-status').textContent='Device storage is unavailable or full. Changes stay in this open page; export before closing. Edits and deletions could not be saved to the device.';}}else baseballDeviceSaved=false;baseballRecords=next;targetBaseline?.refresh();renderBaseballTeamAverage();
+  if(baseballStorageReadable){try{trainingStorage.setItem(baseballStorageKey,JSON.stringify({version:1,records:next}));baseballDeviceSaved=true;$('baseball-storage-status').textContent='';}catch{baseballDeviceSaved=false;$('baseball-storage-status').textContent='Device storage is unavailable or full. Changes stay in this open page; export before closing. Edits and deletions could not be saved to the device.';}}else baseballDeviceSaved=false;baseballRecords=next;targetBaseline?.refresh();renderBaseballTeamAverage();
 }
 function baseballThrows(){return Array.from({length:8},(_,i)=>{const input=$('baseball-throw-'+(i+1));return input.validity.badInput?NaN:input.value.trim()===''?null:input.valueAsNumber;});}
 function renderBaseballStats(){
@@ -496,7 +498,7 @@ function hydratePlayerRecords(player,records){
   overspeedLog.replaceRecords(merged(overspeedLog.records(),records.overspeed));
   overspeedProtocol.replaceRecords(merged(overspeedProtocol.records(),records.overspeed_session));
   pulseLog.replaceRecords(merged(pulseLog.records(),records.pulse));
-  playerSettings=merged(playerSettings,records.player_settings);try{localStorage.setItem('rangers-player-settings-v1',JSON.stringify(playerSettings));}catch{}targetBaseline?.applySaved(player,records.player_settings[0]??null);throwingCalendar.applyStart(player,records.player_settings[0]?.throwing_start_date??null);if($('player').value===player)applyEquipmentMode(records.player_settings[0]?.plyoball_brand??defaultPlyoballBrand(player));throwingFlow.applyPlyoballBrand(player,records.player_settings[0]?.plyoball_brand??defaultPlyoballBrand(player,'throwing'));
+  playerSettings=merged(playerSettings,records.player_settings);try{trainingStorage.setItem('rangers-player-settings-v1',JSON.stringify(playerSettings));}catch{}targetBaseline?.applySaved(player,records.player_settings[0]??null);throwingCalendar.applyStart(player,records.player_settings[0]?.throwing_start_date??null);if($('player').value===player)applyEquipmentMode(records.player_settings[0]?.plyoball_brand??defaultPlyoballBrand(player));throwingFlow.applyPlyoballBrand(player,records.player_settings[0]?.plyoball_brand??defaultPlyoballBrand(player,'throwing'));
   concentrationGrid.refreshRecords();workoutOverview?.refresh();
  }finally{hydratingSheet=false;}
 }
@@ -506,7 +508,7 @@ async function refreshCoachSheet(code){
 sheetSync=startSheetSync({call:gameChangerRemote,journal:teamJournal,apply:hydratePlayerRecords,validate:validateJournalEvent,onState:()=>playerAccess.refresh()});
 function savePlayerSettings(player,patch){
  if(!player||!sheetSync?.ready(player))return;
- const before=playerSettings,prior=before.find(r=>r.player===player);playerSettings=[...before.filter(r=>r.player!==player),{id:'settings-'+player,player,velocity_baseline_mph:prior?.velocity_baseline_mph??null,baseline_source_key:prior?.baseline_source_key??null,throwing_start_date:prior?.throwing_start_date??null,...(prior?.plyoball_brand?{plyoball_brand:prior.plyoball_brand}:{}),...patch,updated_at:new Date().toISOString()}];try{localStorage.setItem('rangers-player-settings-v1',JSON.stringify(playerSettings));}catch{}teamJournal.record('player_settings',before,playerSettings);
+ const before=playerSettings,prior=before.find(r=>r.player===player);playerSettings=[...before.filter(r=>r.player!==player),{id:'settings-'+player,player,velocity_baseline_mph:prior?.velocity_baseline_mph??null,baseline_source_key:prior?.baseline_source_key??null,throwing_start_date:prior?.throwing_start_date??null,...(prior?.plyoball_brand?{plyoball_brand:prior.plyoball_brand}:{}),...patch,updated_at:new Date().toISOString()}];try{trainingStorage.setItem('rangers-player-settings-v1',JSON.stringify(playerSettings));}catch{}teamJournal.record('player_settings',before,playerSettings);
 }
 $('throwing-plyo-brand').addEventListener('change',()=>savePlayerSettings($('throwing-player').value,{plyoball_brand:$('throwing-plyo-brand').value}));
 $('velocity').addEventListener('change',()=>{const value=targetBaseline.snapshot();savePlayerSettings($('player').value,{velocity_baseline_mph:value.manual?Number(value.value):null,baseline_source_key:value.source?.key??null});});
@@ -514,7 +516,7 @@ window.addEventListener('online',()=>{const name=tabPlayers.current();if(name&&s
 route();
 
 
-if(false&&demoResetState.pending){try{runDemoReset({storage:localStorage,scope:rosterHash.toString(16),state:demoResetState,clear:[name=>{persistBlast(blastRecords.filter(r=>r.player!==name));clearBlastMetrics();renderBlastHistory();},name=>blastPcrLog.clearPlayer(name),name=>workoutFlow.commit(workoutFlow.records().filter(r=>r.player!==name)),name=>{persistBaseball(baseballRecords.filter(r=>r.player!==name));resetBaseballDraft();renderBaseballHistory();},name=>pulseLog.clearPlayer(name),name=>overspeedLog.clearPlayer(name),name=>overspeedProtocol.clearPlayer(name)]});$('demo-reset-status').textContent='Demo entries and progress have been reset on this device.';$('demo-reset-status').hidden=false;}catch(error){$('demo-reset-status').textContent=error.message;$('demo-reset-status').hidden=false;}}
+if(false&&demoResetState.pending){try{runDemoReset({storage:trainingStorage,scope:rosterHash.toString(16),state:demoResetState,clear:[name=>{persistBlast(blastRecords.filter(r=>r.player!==name));clearBlastMetrics();renderBlastHistory();},name=>blastPcrLog.clearPlayer(name),name=>workoutFlow.commit(workoutFlow.records().filter(r=>r.player!==name)),name=>{persistBaseball(baseballRecords.filter(r=>r.player!==name));resetBaseballDraft();renderBaseballHistory();},name=>pulseLog.clearPlayer(name),name=>overspeedLog.clearPlayer(name),name=>overspeedProtocol.clearPlayer(name)]});$('demo-reset-status').textContent='Demo entries and progress have been reset on this device.';$('demo-reset-status').hidden=false;}catch(error){$('demo-reset-status').textContent=error.message;$('demo-reset-status').hidden=false;}}
 
 try {
   const response = await fetch('./data.json');
