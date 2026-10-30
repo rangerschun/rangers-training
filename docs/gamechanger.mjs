@@ -1,3 +1,4 @@
+import {passwordChangeFields} from './player-password.mjs?v=personal-passwords-20261029';
 import {applyGameChangerExposure,gameChangerBenchmark,applySharedGameChangerSnapshots} from './gamechanger-data-adapter.mjs?v=batting-player-totals-20261029';
 const ROSTER=new Set(['Rory Chi','Ambrose Chun','Michael Kim','Max Hall','Carson Pavao','Jayden Salas-Smith','Andre Stajan','Aidan Scane','Joseph Mestre','Nathan Bussey','Raiden Huether','Josh Mosakos','Walker Thompson','Carter Nelson']);const GROUPS={
  batting:{label:'Batting',stats:[
@@ -36,9 +37,10 @@ const deltaText=(player,bench,type)=>{
  if(type==='mph')return sign+abs.toFixed(1)+' mph';
  return sign+(Number.isInteger(abs)?abs.toLocaleString():abs.toFixed(1));
 };
-export function startGameChanger({element:$,onPlayerAuthorized=()=>{},players=[],hashes={},readRemote=null}){ const seasonSelect=$('gamechanger-season'),rangeSelect=$('gamechanger-range'),playerSelect=$('gamechanger-player');
+export function startGameChanger({element:$,onPlayerAuthorized=()=>{},players=[],hashes={},readRemote=null,authenticatePlayer=null}){ const seasonSelect=$('gamechanger-season'),rangeSelect=$('gamechanger-range'),playerSelect=$('gamechanger-player');
  const statSelect=$('gamechanger-stat'),focus=$('gamechanger-focus');
  const message=$('gamechanger-message'),details=$('gamechanger-player-stats'),summary=$('gamechanger-summary'),comparison=$('gamechanger-comparison'),updated=$('gamechanger-updated');
+ const changeFields=passwordChangeFields('gamechanger',$);
  const accessDialog=$('gamechanger-access-dialog'),accessForm=$('gamechanger-access-form'),accessInput=$('gamechanger-access-password'),accessError=$('gamechanger-access-error'); let pendingPlayer=null,authorizedPlayerKey='',pendingSyncName='';
  const gcOption=(text,value)=>{const n=document.createElement('option');n.textContent=text;n.value=value;return n;};
  const rangeLabels={full:'Full season stats',last_10:'Last 10 games'};
@@ -52,8 +54,10 @@ export function startGameChanger({element:$,onPlayerAuthorized=()=>{},players=[]
   return key==='last_10'&&games<=10?baseSeason:null;
  }
  function hidePlayerStats(){details.hidden=true;summary.replaceChildren();focus.replaceChildren();comparison.replaceChildren();message.hidden=false;message.textContent='Choose your player and enter your password to view their stats.';}
- function requestPlayer(season,player){pendingPlayer={season,player};accessInput.value='';accessError.hidden=true;accessError.textContent='';$('gamechanger-access-name').textContent=player.name;if(!accessDialog.open)accessDialog.showModal();accessInput.focus();}
- async function verifyPlayerPassword(player,password){
+ function requestPlayer(season,player){changeFields.reset();pendingPlayer={season,player};accessInput.value='';accessError.hidden=true;accessError.textContent='';$('gamechanger-access-name').textContent=player.name;if(!accessDialog.open)accessDialog.showModal();accessInput.focus();}
+ async function verifyPlayerPassword(player,password,newPassword=null){
+  if(authenticatePlayer)return authenticatePlayer(player,password,newPassword);
+  if(newPassword!==null)throw Error('Connect to Google Sheet to change your password.');
   const code=String(password??'').trim().replace(/^#/,'');
   if(!/^\d{1,3}$/.test(code)||!player.password_hash||!globalThis.crypto?.subtle)return false;
   const bytes=new TextEncoder().encode('rangers-jersey-v1\0'+(player.password_label??player.name)+'\0'+code);
@@ -148,15 +152,15 @@ export function startGameChanger({element:$,onPlayerAuthorized=()=>{},players=[]
   playerSelect.value='';hidePlayerStats();requestPlayer(season,player);
  });
  accessForm.addEventListener('submit',async event=>{
-  event.preventDefault();if(!pendingPlayer)return;
+  event.preventDefault();if(!pendingPlayer||changeFields.isBusy())return;
   const candidate=pendingPlayer;const submit=$('gamechanger-access-submit');submit.disabled=true;accessError.hidden=true;
-  let valid=false;try{valid=await verifyPlayerPassword(candidate.player,accessInput.value);}catch{}
-  submit.disabled=false;
+  let valid=false;try{const newPassword=changeFields.read();changeFields.setBusy(true);valid=await verifyPlayerPassword(candidate.player,accessInput.value,newPassword);}catch(problem){submit.disabled=false;changeFields.setBusy(false);accessError.textContent=problem?.message||'The Google connection did not confirm sign-in. Try again.';accessError.hidden=false;return;}
+  submit.disabled=false;changeFields.setBusy(false);
   if(!valid){accessError.textContent='That password does not match. Try again.';accessError.hidden=false;accessInput.value='';accessInput.focus();return;}
-  authorizedPlayerKey=playerKey(candidate.season,candidate.player);playerSelect.value=candidate.player.id;pendingPlayer=null;accessInput.value='';accessDialog.close();draw();onPlayerAuthorized(candidate.player.name.split(/\s+/)[0]);
+  authorizedPlayerKey=playerKey(candidate.season,candidate.player);playerSelect.value=candidate.player.id;pendingPlayer=null;changeFields.reset();accessInput.value='';accessDialog.close();draw();onPlayerAuthorized(candidate.player.name.split(/\s+/)[0]);
  });
- $('gamechanger-access-cancel').addEventListener('click',()=>{pendingPlayer=null;accessInput.value='';accessDialog.close();hidePlayerStats();});
- accessDialog.addEventListener('cancel',event=>{event.preventDefault();pendingPlayer=null;accessInput.value='';accessDialog.close();hidePlayerStats();});
+ $('gamechanger-access-cancel').addEventListener('click',()=>{if(changeFields.isBusy())return;pendingPlayer=null;changeFields.reset();accessInput.value='';accessDialog.close();hidePlayerStats();});
+ accessDialog.addEventListener('cancel',event=>{event.preventDefault();if(changeFields.isBusy())return;pendingPlayer=null;changeFields.reset();accessInput.value='';accessDialog.close();hidePlayerStats();});
   Promise.all([fetch('./gamechanger-stats.json?v=gamechanger-metrics-20261027').then(response=>response.json()),fetch('./gamechanger-advanced-stats.json?v=coach-summary-fps-20261029').then(response=>response.json())]).then(([data,advanced])=>{
   seasons=data.seasons??[];for(const season of seasons){const extra=advanced[season.id]??{};for(const player of season.players){Object.assign(player.batting,extra.batting?.players?.[player.number]??{});Object.assign(player.pitching,extra.pitching?.players?.[player.number]??{});const pa=Number(player.batting.PA),so=Number(player.batting.SO);player.batting['K%']=pa>0&&Number.isFinite(so)?so/pa*100:null;}for(const key of ['BB/K','BABIP','BA/RISP'])if(extra.batting?.team?.[key]!==undefined)season.benchmarks.batting[key]={value:extra.batting.team[key],kind:'team rate',eligible:14};const pa=Number(season.benchmarks.batting.PA?.value),so=Number(season.benchmarks.batting.SO?.value);if(pa>0&&Number.isFinite(so))season.benchmarks.batting['K%']={value:so/pa*100,kind:'team rate',eligible:14};for(const key of ['S%','FPS%']){for(const player of season.players){const value=extra.pitching?.players?.[player.number]?.[key];if(value!==undefined)player.pitching[key]=value;}if(extra.pitching?.team?.[key]!==undefined)season.benchmarks.pitching[key]={value:extra.pitching.team[key],kind:'team rate'};}}for(const season of seasons)applyGameChangerExposure(season);ready=true;seasonSelect.replaceChildren(...seasons.map(s=>gcOption(s.label,s.id)));
   if(data.last_updated){const date=new Date(data.last_updated+'T12:00:00Z');updated.textContent='LAST UPDATED · '+new Intl.DateTimeFormat('en-CA',{dateStyle:'long',timeZone:'UTC'}).format(date);}

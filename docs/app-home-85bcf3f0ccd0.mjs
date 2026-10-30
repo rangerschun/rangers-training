@@ -1,3 +1,4 @@
+import {authenticateWithPersonalPassword,passwordChangeFields} from './player-password.mjs?v=personal-passwords-20261029';
 import {startCoachPlayerSummary} from './coach-player-summary.mjs';
 import { TRAINING_BACKEND_CONFIG } from './training-config.mjs';
 import { trainingStorage } from './training-storage.mjs';
@@ -37,8 +38,8 @@ export function startSheetSync({call,journal,apply,validate,onState=()=>{}}){
   if(working.has(player))return working.get(player);
   const work=(async()=>{try{return await task();}catch(error){set(player,false,error.message+' Nothing waiting has been discarded.',{conflict:/changed on another device/.test(error.message)});throw error;}finally{working.delete(player);}})();working.set(player,work);return work;
  }
- async function login(player,password){
-  return run(player,async()=>{set(player,false,'Loading your records from Google Sheet…');const auth=await call('authenticatePlayer',[{player,password}]);if(auth?.player!==player||typeof auth.token!=='string')throw Error('Player access was not confirmed by Google Sheet.');sessions.set(player,auth.token);await load(player);await drain(player);return true;});
+ async function login(player,password,newPassword=null){
+  return run(player,async()=>{set(player,false,'Loading your records from Google Sheet…');const auth=await authenticateWithPersonalPassword(call,player,password,newPassword);if(auth?.player!==player||typeof auth.token!=='string')throw Error('Player access was not confirmed by Google Sheet.');sessions.set(player,auth.token);try{await load(player);await drain(player);}catch(error){if(auth.password_changed)throw Error('Your password was changed. Sign in again using your new password. '+error.message);throw error;}return true;});
  }
  function refresh(player){if(!sessions.has(player))return Promise.reject(Error('Enter your password again.'));return run(player,async()=>{set(player,false,'Refreshing your records from Google Sheet…');await load(player);await drain(player);return true;});}
  function changed(){
@@ -201,9 +202,10 @@ const deltaText=(player,bench,type)=>{
  if(type==='mph')return sign+abs.toFixed(1)+' mph';
  return sign+(Number.isInteger(abs)?abs.toLocaleString():abs.toFixed(1));
 };
-export function startGameChanger({element:$,onPlayerAuthorized=()=>{},players=[],hashes={},readRemote=null}){ const seasonSelect=$('gamechanger-season'),rangeSelect=$('gamechanger-range'),playerSelect=$('gamechanger-player');
+export function startGameChanger({element:$,onPlayerAuthorized=()=>{},players=[],hashes={},readRemote=null,authenticatePlayer=null}){ const seasonSelect=$('gamechanger-season'),rangeSelect=$('gamechanger-range'),playerSelect=$('gamechanger-player');
  const statSelect=$('gamechanger-stat'),focus=$('gamechanger-focus');
  const message=$('gamechanger-message'),details=$('gamechanger-player-stats'),summary=$('gamechanger-summary'),comparison=$('gamechanger-comparison'),updated=$('gamechanger-updated');
+ const changeFields=passwordChangeFields('gamechanger',$);
  const accessDialog=$('gamechanger-access-dialog'),accessForm=$('gamechanger-access-form'),accessInput=$('gamechanger-access-password'),accessError=$('gamechanger-access-error'); let pendingPlayer=null,authorizedPlayerKey='',pendingSyncName='';
  const gcOption=(text,value)=>{const n=document.createElement('option');n.textContent=text;n.value=value;return n;};
  const rangeLabels={full:'Full season stats',last_10:'Last 10 games'};
@@ -217,8 +219,10 @@ export function startGameChanger({element:$,onPlayerAuthorized=()=>{},players=[]
   return key==='last_10'&&games<=10?baseSeason:null;
  }
  function hidePlayerStats(){details.hidden=true;summary.replaceChildren();focus.replaceChildren();comparison.replaceChildren();message.hidden=false;message.textContent='Choose your player and enter your password to view their stats.';}
- function requestPlayer(season,player){pendingPlayer={season,player};accessInput.value='';accessError.hidden=true;accessError.textContent='';$('gamechanger-access-name').textContent=player.name;if(!accessDialog.open)accessDialog.showModal();accessInput.focus();}
- async function verifyPlayerPassword(player,password){
+ function requestPlayer(season,player){changeFields.reset();pendingPlayer={season,player};accessInput.value='';accessError.hidden=true;accessError.textContent='';$('gamechanger-access-name').textContent=player.name;if(!accessDialog.open)accessDialog.showModal();accessInput.focus();}
+ async function verifyPlayerPassword(player,password,newPassword=null){
+  if(authenticatePlayer)return authenticatePlayer(player,password,newPassword);
+  if(newPassword!==null)throw Error('Connect to Google Sheet to change your password.');
   const code=String(password??'').trim().replace(/^#/,'');
   if(!/^\d{1,3}$/.test(code)||!player.password_hash||!globalThis.crypto?.subtle)return false;
   const bytes=new TextEncoder().encode('rangers-jersey-v1\0'+(player.password_label??player.name)+'\0'+code);
@@ -313,15 +317,15 @@ export function startGameChanger({element:$,onPlayerAuthorized=()=>{},players=[]
   playerSelect.value='';hidePlayerStats();requestPlayer(season,player);
  });
  accessForm.addEventListener('submit',async event=>{
-  event.preventDefault();if(!pendingPlayer)return;
+  event.preventDefault();if(!pendingPlayer||changeFields.isBusy())return;
   const candidate=pendingPlayer;const submit=$('gamechanger-access-submit');submit.disabled=true;accessError.hidden=true;
-  let valid=false;try{valid=await verifyPlayerPassword(candidate.player,accessInput.value);}catch{}
-  submit.disabled=false;
+  let valid=false;try{const newPassword=changeFields.read();changeFields.setBusy(true);valid=await verifyPlayerPassword(candidate.player,accessInput.value,newPassword);}catch(problem){submit.disabled=false;changeFields.setBusy(false);accessError.textContent=problem?.message||'The Google connection did not confirm sign-in. Try again.';accessError.hidden=false;return;}
+  submit.disabled=false;changeFields.setBusy(false);
   if(!valid){accessError.textContent='That password does not match. Try again.';accessError.hidden=false;accessInput.value='';accessInput.focus();return;}
-  authorizedPlayerKey=playerKey(candidate.season,candidate.player);playerSelect.value=candidate.player.id;pendingPlayer=null;accessInput.value='';accessDialog.close();draw();onPlayerAuthorized(candidate.player.name.split(/\s+/)[0]);
+  authorizedPlayerKey=playerKey(candidate.season,candidate.player);playerSelect.value=candidate.player.id;pendingPlayer=null;changeFields.reset();accessInput.value='';accessDialog.close();draw();onPlayerAuthorized(candidate.player.name.split(/\s+/)[0]);
  });
- $('gamechanger-access-cancel').addEventListener('click',()=>{pendingPlayer=null;accessInput.value='';accessDialog.close();hidePlayerStats();});
- accessDialog.addEventListener('cancel',event=>{event.preventDefault();pendingPlayer=null;accessInput.value='';accessDialog.close();hidePlayerStats();});
+ $('gamechanger-access-cancel').addEventListener('click',()=>{if(changeFields.isBusy())return;pendingPlayer=null;changeFields.reset();accessInput.value='';accessDialog.close();hidePlayerStats();});
+ accessDialog.addEventListener('cancel',event=>{event.preventDefault();if(changeFields.isBusy())return;pendingPlayer=null;changeFields.reset();accessInput.value='';accessDialog.close();hidePlayerStats();});
   Promise.all([fetch('./gamechanger-stats.json?v=gamechanger-metrics-20261027').then(response=>response.json()),fetch('./gamechanger-advanced-stats.json?v=coach-summary-fps-20261029').then(response=>response.json())]).then(([data,advanced])=>{
   seasons=data.seasons??[];for(const season of seasons){const extra=advanced[season.id]??{};for(const player of season.players){Object.assign(player.batting,extra.batting?.players?.[player.number]??{});Object.assign(player.pitching,extra.pitching?.players?.[player.number]??{});const pa=Number(player.batting.PA),so=Number(player.batting.SO);player.batting['K%']=pa>0&&Number.isFinite(so)?so/pa*100:null;}for(const key of ['BB/K','BABIP','BA/RISP'])if(extra.batting?.team?.[key]!==undefined)season.benchmarks.batting[key]={value:extra.batting.team[key],kind:'team rate',eligible:14};const pa=Number(season.benchmarks.batting.PA?.value),so=Number(season.benchmarks.batting.SO?.value);if(pa>0&&Number.isFinite(so))season.benchmarks.batting['K%']={value:so/pa*100,kind:'team rate',eligible:14};for(const key of ['S%','FPS%']){for(const player of season.players){const value=extra.pitching?.players?.[player.number]?.[key];if(value!==undefined)player.pitching[key]=value;}if(extra.pitching?.team?.[key]!==undefined)season.benchmarks.pitching[key]={value:extra.pitching.team[key],kind:'team rate'};}}for(const season of seasons)applyGameChangerExposure(season);ready=true;seasonSelect.replaceChildren(...seasons.map(s=>gcOption(s.label,s.id)));
   if(data.last_updated){const date=new Date(data.last_updated+'T12:00:00Z');updated.textContent='LAST UPDATED · '+new Intl.DateTimeFormat('en-CA',{dateStyle:'long',timeZone:'UTC'}).format(date);}
@@ -1006,8 +1010,7 @@ export function installGoogleBridge(config){
  if(!config||globalThis.google?.script?.run)return null;
  if(globalThis.location?.origin!==config.origin)return null;
  const bridge=createGoogleBridge(config);globalThis.google={script:{run:bridge.run}};
- const form=document.getElementById('player-access-form');
- if(form){const button=document.createElement('button');button.type='button';button.textContent='Connect Google in a separate window';button.addEventListener('click',bridge.connect);form.append(button,bridge.status);}
+ for(const id of ['player-access-form','gamechanger-access-form']){const form=document.getElementById(id);if(!form)continue;const button=document.createElement('button');button.type='button';button.className='secondary-button';button.textContent='Connect Google in a separate window';button.addEventListener('click',bridge.connect);if(id==='player-access-form')form.append(button,bridge.status);else{const status=bridge.status.cloneNode(true);new MutationObserver(()=>{status.textContent=bridge.status.textContent;}).observe(bridge.status,{childList:true,subtree:true,characterData:true});form.append(button,status);}}
  return bridge;
 }
 
@@ -1037,6 +1040,7 @@ export async function jerseyCodeMatches(player,code,hashes,crypto=globalThis.cry
  return Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('')===hashes[player];
 }
 export function startPlayerAccess({players,hashes,element:$,matches=jerseyCodeMatches,cloudStatus=null,onRetry=()=>{}}){
+ const changeFields=passwordChangeFields('player', $);
  const verified=new Set(),accepted=new Map(),allowed=new WeakSet();let pending=null,attempt=0;
  const dialog=$('player-access-dialog'),input=$('player-access-code'),error=$('player-access-error'),submit=$('player-access-submit');
  function render(){
@@ -1047,9 +1051,9 @@ export function startPlayerAccess({players,hashes,element:$,matches=jerseyCodeMa
    if(bar)for(const field of bar.children)if(!field.contains(select))field.inert=!unlocked;
   }
  }
- function dismiss(){attempt++;pending=null;input.value='';error.hidden=true;submit.disabled=false;if(dialog.open)dialog.close();render();}
+ function dismiss(){if(changeFields.isBusy())return;attempt++;pending=null;changeFields.reset();input.value='';error.hidden=true;submit.disabled=false;if(dialog.open)dialog.close();render();}
  function request(select,name){
-  attempt++;pending={select,name};input.value='';error.hidden=true;
+  attempt++;pending={select,name};changeFields.reset();input.value='';error.hidden=true;
   const configured=Object.hasOwn(hashes??{},name);input.disabled=!configured;submit.disabled=!configured;
   $('player-access-name').textContent=name;$('player-access-help').textContent=configured?'Enter your password to continue.':'Your password has not been set up yet. Please ask your coach.';
   if(!dialog.open)dialog.showModal();if(configured)input.focus();render();
@@ -1071,10 +1075,10 @@ export function startPlayerAccess({players,hashes,element:$,matches=jerseyCodeMa
  $('player-access-form').addEventListener('submit',async event=>{
   event.preventDefault();if(!pending||submit.disabled)return;
   const selected=pending,token=++attempt;submit.disabled=true;error.hidden=true;
-  let valid=false;try{valid=await matches(selected.name,input.value,hashes);}catch(problem){if(token===attempt){error.textContent=cloudStatus?(problem?.message??'Google Sheet could not load. Check your connection and try again.'):'The password check could not run. Please reload this page and try again.';error.hidden=false;submit.disabled=false;}return;}
-  if(token!==attempt)return;
+  let valid=false;try{const newPassword=changeFields.read();changeFields.setBusy(true);valid=await matches(selected.name,input.value,hashes,newPassword);}catch(problem){if(token===attempt){changeFields.setBusy(false);error.textContent=problem?.message||(cloudStatus?'Google Sheet could not load. Check your connection and try again.':'The password check could not run. Please reload this page and try again.');error.hidden=false;submit.disabled=false;}return;}
+  if(token!==attempt)return;changeFields.setBusy(false);
   if(!valid){error.textContent='That password does not match. Try again.';error.hidden=false;submit.disabled=false;input.value='';input.focus();return;}
-  verified.add(selected.name);dialog.close();pending=null;input.value='';submit.disabled=false;
+  verified.add(selected.name);changeFields.reset();dialog.close();pending=null;input.value='';submit.disabled=false;
   allowed.add(selected.select);selected.select.value=selected.name;selected.select.dispatchEvent(new Event('change',{bubbles:true}));
   accepted.set(selected.select.id,selected.select.value);render();
  });
@@ -3829,14 +3833,14 @@ $('overspeed-clear-entries').addEventListener('click',()=>{const player=$('overs
 const pulseLog=startPulse({getCoachCode:()=>coachSheetCode,players:PLAYER_LABELS,scope:rosterHash.toString(16),element:$,download:downloadFile,onChange:(before,after)=>{if(!hydratingSheet)teamJournal?.record('pulse',before,after);}});
 const visionVideos=startVisionVideos({element:$});
 function gameChangerRemote(method,args=[]){const exactJson=['authenticatePlayer','getPlayerData','writePlayerJournal','getCoachPlayerData'].includes(method);if(exactJson)args=args.map(value=>JSON.stringify(value));return new Promise((resolve,reject)=>{if(!globalThis.google?.script?.run){reject(Error('Shared coach connection is unavailable.'));return;}const timer=setTimeout(()=>reject(Error('The shared stats request was not confirmed. Try again.')),25000);globalThis.google.script.run.withSuccessHandler(result=>{clearTimeout(timer);try{resolve(exactJson&&typeof result==='string'?JSON.parse(result):result);}catch{reject(Error('Google Sheet returned unreadable records.'));}}).withFailureHandler(error=>{clearTimeout(timer);reject(Error(error?.message||'Shared stats could not be confirmed. Use your private coach code or coach account.'));})[method](...args);});}
-const gameChanger=startGameChanger({element:$,onPlayerAuthorized:player=>tabPlayers?.setCurrent(player),players:PLAYER_LABELS,hashes:PLAYER_JERSEY_HASHES,readRemote:()=>gameChangerRemote('getGameChangerStats')});
+const gameChanger=startGameChanger({element:$,onPlayerAuthorized:player=>tabPlayers?.setCurrent(player),players:PLAYER_LABELS,hashes:PLAYER_JERSEY_HASHES,readRemote:()=>gameChangerRemote('getGameChangerStats'),authenticatePlayer:(player,password,newPassword)=>{const name=player.name.split(/\s+/)[0];if(!PLAYER_LABELS.includes(name)||!sheetSync)throw Error('This player is not connected to Google Sheet.');return sheetSync.login(name,password,newPassword);}});
 const concentrationGrid=startConcentrationGrid({element:$,players:PLAYER_LABELS,flow:workoutFlow,getDailyRecords:()=>[],readRemote:()=>teamJournal.readConcentrationSummary()});
 
 
 const throwingCalendar=startThrowingCalendar({players:PLAYER_LABELS,scope:rosterHash.toString(16),element:$,flow:throwingFlow,subscribe:listener=>workoutFlow.subscribe(listener),onStartChange:(player,date)=>savePlayerSettings(player,{throwing_start_date:date})});
 axePrograms=startAxePrograms({element:$,players:PLAYER_LABELS,flow:workoutFlow,download:downloadFile,onNavigate:()=>{tabPlayers?.setCurrent($('axe-player').value);location.hash='#axe';}});
 tabPlayers=startTabPlayers({players:PLAYER_LABELS,element:$});
-const playerAccess=startPlayerAccess({players:PLAYER_LABELS,hashes:PLAYER_JERSEY_HASHES,element:$,matches:async(player,password)=>{if(!sheetSync)throw Error('Google Sheet is unavailable. Please reload and try again.');return sheetSync.login(player,password);},cloudStatus:player=>sheetSync?.status(player)??{ready:false,message:'Google Sheet is connecting…'},onRetry:(player,view)=>{if(sheetSync?.status(player).conflict){void sheetSync.review(player,message=>window.confirm(message)).catch(()=>{});return;}if(!sheetSync?.hasSession(player)){playerAccess.revoke(player);playerAccess.activate(view);return;}void sheetSync.refresh(player).catch(()=>{playerAccess.revoke(player);playerAccess.activate(view);});}});
+const playerAccess=startPlayerAccess({players:PLAYER_LABELS,hashes:PLAYER_JERSEY_HASHES,element:$,matches:async(player,password,hashes,newPassword)=>{if(!sheetSync)throw Error('Google Sheet is unavailable. Please reload and try again.');return sheetSync.login(player,password,newPassword);},cloudStatus:player=>sheetSync?.status(player)??{ready:false,message:'Google Sheet is connecting…'},onRetry:(player,view)=>{if(sheetSync?.status(player).conflict){void sheetSync.review(player,message=>window.confirm(message)).catch(()=>{});return;}if(!sheetSync?.hasSession(player)){playerAccess.revoke(player);playerAccess.activate(view);return;}void sheetSync.refresh(player).catch(()=>{playerAccess.revoke(player);playerAccess.activate(view);});}});
 const coachAccess=startCoachAccess({element:$,matches:async password=>{await refreshCoachSheet(password);coachSheetCode=password;return true;},onUnlock:()=>{workoutOverview?.refresh();pulseLog.refresh();}});
 const coachSummary=startCoachPlayerSummary({players:PLAYER_LABELS,element:$,download:downloadFile,isCoach:()=>coachAccess.isVerified(),refresh:()=>refreshCoachSheet(coachSheetCode)});
 const gameChangerCoach=startGameChangerCoach({element:$,publish:request=>gameChangerRemote('publishGameChangerStats',[{...request,code:request.code||coachSheetCode}]),onPublished:seasons=>gameChanger.apply(seasons),isCoach:()=>coachAccess.isVerified()});

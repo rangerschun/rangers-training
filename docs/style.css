@@ -274,3 +274,5 @@ select option,select optgroup{background-color:var(--dropdown-bg)}
 
 /* Single-player coach summary keeps long exercise lists readable. */
 .coach-summary-table{min-width:1050px}.coach-summary-table td{white-space:pre-wrap;vertical-align:top;min-width:100px;max-width:360px}.coach-summary-table td:nth-child(5),.coach-summary-table td:nth-child(6){min-width:200px}
+
+.personal-password-choice{display:flex!important;align-items:center;gap:10px;font-size:13px;margin:18px 0}.personal-password-choice input{width:18px!important;height:18px!important;min-height:18px!important;flex:0 0 18px;margin:0!important;padding:0!important;accent-color:#4169e1}.personal-password-fields{padding:14px;margin-bottom:16px;background:#f2f7fc;border-radius:7px}.personal-password-fields p{font-size:12px;margin:0 0 14px;line-height:1.6}.personal-password-fields label+label{display:block;margin-top:14px}.player-access-dialog{max-height:calc(100dvh - 40px);overflow-y:auto}
