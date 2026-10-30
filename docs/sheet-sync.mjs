@@ -1,3 +1,4 @@
+import {authenticateWithPersonalPassword} from './player-password.mjs';
 export const SHEET_KINDS=['blast','blast_pcr','baseball','workout','overspeed','overspeed_session','pulse','player_settings'];
 export function checkSheetSnapshot(snapshot,player,validate){
  if(!snapshot||snapshot.source!=='google_sheet'||snapshot.player!==player||!snapshot.records||!snapshot.revisions||typeof snapshot.as_of!=='string')throw Error('The Google Sheet response could not be verified.');
@@ -30,8 +31,8 @@ export function startSheetSync({call,journal,apply,validate,onState=()=>{}}){
   if(working.has(player))return working.get(player);
   const work=(async()=>{try{return await task();}catch(error){set(player,false,error.message+' Nothing waiting has been discarded.',{conflict:/changed on another device/.test(error.message)});throw error;}finally{working.delete(player);}})();working.set(player,work);return work;
  }
- async function login(player,password){
-  return run(player,async()=>{set(player,false,'Loading your records from Google Sheet…');const auth=await call('authenticatePlayer',[{player,password}]);if(auth?.player!==player||typeof auth.token!=='string')throw Error('Player access was not confirmed by Google Sheet.');sessions.set(player,auth.token);await load(player);await drain(player);return true;});
+ async function login(player,password,newPassword=null){
+  return run(player,async()=>{set(player,false,'Loading your records from Google Sheet…');const auth=await authenticateWithPersonalPassword(call,player,password,newPassword);if(auth?.player!==player||typeof auth.token!=='string')throw Error('Player access was not confirmed by Google Sheet.');sessions.set(player,auth.token);try{await load(player);await drain(player);}catch(error){if(auth.password_changed)throw Error('Your password was changed. Sign in again using your new password. '+error.message);throw error;}return true;});
  }
  function refresh(player){if(!sessions.has(player))return Promise.reject(Error('Enter your password again.'));return run(player,async()=>{set(player,false,'Refreshing your records from Google Sheet…');await load(player);await drain(player);return true;});}
  function changed(){

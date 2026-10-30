@@ -54,7 +54,6 @@ export function installGoogleBridge(config){
  if(!config||globalThis.google?.script?.run)return null;
  if(globalThis.location?.origin!==config.origin)return null;
  const bridge=createGoogleBridge(config);globalThis.google={script:{run:bridge.run}};
- const form=document.getElementById('player-access-form');
- if(form){const button=document.createElement('button');button.type='button';button.textContent='Connect Google in a separate window';button.addEventListener('click',bridge.connect);form.append(button,bridge.status);}
+ for(const id of ['player-access-form','gamechanger-access-form']){const form=document.getElementById(id);if(!form)continue;const button=document.createElement('button');button.type='button';button.className='secondary-button';button.textContent='Connect Google in a separate window';button.addEventListener('click',bridge.connect);if(id==='player-access-form')form.append(button,bridge.status);else{const status=bridge.status.cloneNode(true);new MutationObserver(()=>{status.textContent=bridge.status.textContent;}).observe(bridge.status,{childList:true,subtree:true,characterData:true});form.append(button,status);}}
  return bridge;
 }

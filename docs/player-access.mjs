@@ -1,3 +1,4 @@
+import {passwordChangeFields} from './player-password.mjs';
 import {TAB_PLAYER_IDS} from './tab-players.mjs?v=player-jersey-check-20261025';
 
 // A browser-only jersey check. It does not authenticate Google requests or protect public assets.
@@ -9,6 +10,7 @@ export async function jerseyCodeMatches(player,code,hashes,crypto=globalThis.cry
  return Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('')===hashes[player];
 }
 export function startPlayerAccess({players,hashes,element:$,matches=jerseyCodeMatches,cloudStatus=null,onRetry=()=>{}}){
+ const changeFields=passwordChangeFields('player', $);
  const verified=new Set(),accepted=new Map(),allowed=new WeakSet();let pending=null,attempt=0;
  const dialog=$('player-access-dialog'),input=$('player-access-code'),error=$('player-access-error'),submit=$('player-access-submit');
  function render(){
@@ -19,9 +21,9 @@ export function startPlayerAccess({players,hashes,element:$,matches=jerseyCodeMa
    if(bar)for(const field of bar.children)if(!field.contains(select))field.inert=!unlocked;
   }
  }
- function dismiss(){attempt++;pending=null;input.value='';error.hidden=true;submit.disabled=false;if(dialog.open)dialog.close();render();}
+ function dismiss(){attempt++;pending=null;changeFields.reset();input.value='';error.hidden=true;submit.disabled=false;if(dialog.open)dialog.close();render();}
  function request(select,name){
-  attempt++;pending={select,name};input.value='';error.hidden=true;
+  attempt++;pending={select,name};changeFields.reset();input.value='';error.hidden=true;
   const configured=Object.hasOwn(hashes??{},name);input.disabled=!configured;submit.disabled=!configured;
   $('player-access-name').textContent=name;$('player-access-help').textContent=configured?'Enter your password to continue.':'Your password has not been set up yet. Please ask your coach.';
   if(!dialog.open)dialog.showModal();if(configured)input.focus();render();
@@ -43,10 +45,10 @@ export function startPlayerAccess({players,hashes,element:$,matches=jerseyCodeMa
  $('player-access-form').addEventListener('submit',async event=>{
   event.preventDefault();if(!pending||submit.disabled)return;
   const selected=pending,token=++attempt;submit.disabled=true;error.hidden=true;
-  let valid=false;try{valid=await matches(selected.name,input.value,hashes);}catch(problem){if(token===attempt){error.textContent=cloudStatus?(problem?.message??'Google Sheet could not load. Check your connection and try again.'):'The password check could not run. Please reload this page and try again.';error.hidden=false;submit.disabled=false;}return;}
-  if(token!==attempt)return;
+  let valid=false;try{const newPassword=changeFields.read();changeFields.setBusy(true);valid=await matches(selected.name,input.value,hashes,newPassword);}catch(problem){if(token===attempt){changeFields.setBusy(false);error.textContent=problem?.message||(cloudStatus?'Google Sheet could not load. Check your connection and try again.':'The password check could not run. Please reload this page and try again.');error.hidden=false;submit.disabled=false;}return;}
+  if(token!==attempt)return;changeFields.setBusy(false);
   if(!valid){error.textContent='That password does not match. Try again.';error.hidden=false;submit.disabled=false;input.value='';input.focus();return;}
-  verified.add(selected.name);dialog.close();pending=null;input.value='';submit.disabled=false;
+  verified.add(selected.name);changeFields.reset();dialog.close();pending=null;input.value='';submit.disabled=false;
   allowed.add(selected.select);selected.select.value=selected.name;selected.select.dispatchEvent(new Event('change',{bubbles:true}));
   accepted.set(selected.select.id,selected.select.value);render();
  });
