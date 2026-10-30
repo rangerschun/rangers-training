@@ -1,3 +1,4 @@
+import {startCoachPlayerSummary} from './coach-player-summary.mjs';
 import { TRAINING_BACKEND_CONFIG } from './training-config.mjs';
 import { trainingStorage } from './training-storage.mjs';
 import {defaultPlyoballBrand} from './plyoball-defaults.mjs?v=schedule-auto-refresh-20261025';
@@ -446,8 +447,9 @@ axePrograms=startAxePrograms({element:$,players:PLAYER_LABELS,flow:workoutFlow,d
 tabPlayers=startTabPlayers({players:PLAYER_LABELS,element:$});
 const playerAccess=startPlayerAccess({players:PLAYER_LABELS,hashes:PLAYER_JERSEY_HASHES,element:$,matches:async(player,password)=>{if(!sheetSync)throw Error('Google Sheet is unavailable. Please reload and try again.');return sheetSync.login(player,password);},cloudStatus:player=>sheetSync?.status(player)??{ready:false,message:'Google Sheet is connecting…'},onRetry:(player,view)=>{if(sheetSync?.status(player).conflict){void sheetSync.review(player,message=>window.confirm(message)).catch(()=>{});return;}if(!sheetSync?.hasSession(player)){playerAccess.revoke(player);playerAccess.activate(view);return;}void sheetSync.refresh(player).catch(()=>{playerAccess.revoke(player);playerAccess.activate(view);});}});
 const coachAccess=startCoachAccess({element:$,matches:async password=>{await refreshCoachSheet(password);coachSheetCode=password;return true;},onUnlock:()=>{workoutOverview?.refresh();pulseLog.refresh();}});
+const coachSummary=startCoachPlayerSummary({players:PLAYER_LABELS,element:$,download:downloadFile,isCoach:()=>coachAccess.isVerified(),refresh:()=>refreshCoachSheet(coachSheetCode)});
 const gameChangerCoach=startGameChangerCoach({element:$,publish:request=>gameChangerRemote('publishGameChangerStats',[{...request,code:request.code||coachSheetCode}]),onPublished:seasons=>gameChanger.apply(seasons),isCoach:()=>coachAccess.isVerified()});
-$('coach-access-lock').addEventListener('click',()=>{coachSheetCode='';gameChangerCoach.reset();});
+$('coach-access-lock').addEventListener('click',()=>{coachSheetCode='';gameChangerCoach.reset();coachSummary.clear();});
 const routeLabels = { workouts: 'WORKOUT LOG', throwing: 'THROWING ROUTINE',  targets: 'PLYOCARE LAB', tracker: 'BASEBALL THROWS', pulse: 'DRIVELINE PULSE', blast: 'BLAST MOTION', overspeed: 'OVERSPEED PROGRAM', axe:'AXE BATS', concentration: 'VISION TRAINING', gamechanger: 'GAMECHANGER STATS', approach: 'TRAINING APPROACH', coach: 'COACH DESK' };
 function route() {
   const key = location.hash.slice(1);
@@ -503,7 +505,7 @@ function hydratePlayerRecords(player,records){
  }finally{hydratingSheet=false;}
 }
 async function refreshCoachSheet(code){
- const [all,workouts,pulse]=await Promise.all([gameChangerRemote('getCoachPlayerData',[{code}]),gameChangerRemote('getCoachWorkouts',[{code}]),gameChangerRemote('getCoachPulse',[{code}])]);await sheetSync.applyCoach(all);workoutOverview.applyShared(workouts,code);pulseLog.applyShared(pulse,code);
+ const [all,workouts,pulse]=await Promise.all([gameChangerRemote('getCoachPlayerData',[{code}]),gameChangerRemote('getCoachWorkouts',[{code}]),gameChangerRemote('getCoachPulse',[{code}])]);await sheetSync.applyCoach(all);coachSummary.applyShared(all);workoutOverview.applyShared(workouts,code);pulseLog.applyShared(pulse,code);
 }
 sheetSync=startSheetSync({call:gameChangerRemote,journal:teamJournal,apply:hydratePlayerRecords,validate:validateJournalEvent,onState:()=>playerAccess.refresh()});
 function savePlayerSettings(player,patch){

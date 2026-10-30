@@ -271,3 +271,6 @@ select option,select optgroup{background-color:var(--dropdown-bg)}
 #view-overspeed .overspeed-paired-forms{width:100%;min-width:0}
 #view-overspeed .overspeed-paired-forms>*{min-width:0}
 #view-overspeed .overspeed-speed-inputs label,#view-overspeed .overspeed-speed-inputs input{min-width:0;width:100%;box-sizing:border-box}
+
+/* Single-player coach summary keeps long exercise lists readable. */
+.coach-summary-table{min-width:1050px}.coach-summary-table td{white-space:pre-wrap;vertical-align:top;min-width:100px;max-width:360px}.coach-summary-table td:nth-child(5),.coach-summary-table td:nth-child(6){min-width:200px}
