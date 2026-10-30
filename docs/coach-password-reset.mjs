@@ -1,5 +1,6 @@
 export function startCoachPasswordReset({element:$,players,isCoach,reset,confirm=message=>globalThis.confirm(message)}){
  const player=$('coach-password-player'),button=$('coach-password-reset'),status=$('coach-password-status');let busy=false;
+ if(!player||!button||!status)return {clear(){}};
  for(const name of players){const option=document.createElement('option');option.value=option.textContent=name;player.append(option);}
  function render(){button.disabled=busy||!player.value;player.disabled=busy;}
  player.addEventListener('change',()=>{status.textContent='';render();});
