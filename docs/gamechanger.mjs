@@ -2,13 +2,14 @@ import {applyGameChangerExposure,gameChangerBenchmark,applySharedGameChangerSnap
 const ROSTER=new Set(['Rory Chi','Ambrose Chun','Michael Kim','Max Hall','Carson Pavao','Jayden Salas-Smith','Andre Stajan','Aidan Scane','Joseph Mestre','Nathan Bussey','Raiden Huether','Josh Mosakos','Walker Thompson','Carter Nelson']);const GROUPS={
  batting:{label:'Batting',stats:[
   ['OPS','OPS','ops',1],['AVG','AVG','avg',1],['OBP','OBP','avg',1],['SLG','SLG','avg',1],
+  ['BB/K','BB/K','ratio',1],['BABIP','BABIP','avg',1],['BA/RISP','BA/RISP','avg',1],['K%','K%','pct100',-1],
   ['H','Hits','int',1],['1B','Singles','int',1],['2B','Doubles','int',1],['3B','Triples','int',1],['XBH','Extra-base hits','int',1],['HR','Home runs','int',1],
-  ['RBI','Runs batted in','int',1],['SB','Stolen bases','int',1],['BB/K','BB/K','ratio',1],['BABIP','BABIP','avg',1],['BA/RISP','BA/RISP','avg',1],['K%','K%','pct100',-1],
+  ['RBI','Runs batted in','int',1],['SB','Stolen bases','int',1],
  ]},
  pitching:{label:'Pitching',stats:[
   
   ['WHIP','WHIP','whip',-1],
-  ['SO','SO','int',1],['BB','BB','int',-1],['S%','S%','pct100',1],
+  ['FPS%','First-pitch strike %','pct100',1],['S%','Strike %','pct100',1],['SO','SO','int',1],['BB','BB','int',-1],
  ]},
  fielding:{label:'Fielding',stats:[
   ['TC','Total chances','int',0],['A','Assists','int',0],['PO','Putouts','int',0],['FPCT','Fielding percentage','fpct',1],['E','Errors','int',-1],['DP','Double plays','int',1],['TP','Triple plays','int',1]
@@ -40,7 +41,7 @@ export function startGameChanger({element:$,onPlayerAuthorized=()=>{},players=[]
  const message=$('gamechanger-message'),details=$('gamechanger-player-stats'),summary=$('gamechanger-summary'),comparison=$('gamechanger-comparison'),updated=$('gamechanger-updated');
  const accessDialog=$('gamechanger-access-dialog'),accessForm=$('gamechanger-access-form'),accessInput=$('gamechanger-access-password'),accessError=$('gamechanger-access-error'); let pendingPlayer=null,authorizedPlayerKey='',pendingSyncName='';
  const gcOption=(text,value)=>{const n=document.createElement('option');n.textContent=text;n.value=value;return n;};
- const rangeLabels={full:'Full season stats',last_month:'Last month',last_10:'Last 10 games'};
+ const rangeLabels={full:'Full season stats',last_10:'Last 10 games'};
  const buttons=[...document.querySelectorAll('[data-gamechanger-group]')];for(const button of buttons)if(button.dataset.gamechangerGroup==='fielding')button.hidden=true;let seasons=[],group='batting',busy=false,ready=false; function playerKey(season,player){return season&&player?season.id+'|'+player.id:'';}
  function selectedRangeSeason(baseSeason){
   if(!baseSeason)return null;const key=rangeSelect.value||'full';
@@ -112,7 +113,7 @@ export function startGameChanger({element:$,onPlayerAuthorized=()=>{},players=[]
   const body=document.createElement('tbody');let visible=0;
   for(const [key,label,type,direction] of (hasStats?config.stats:[])){
    const value=player[group][key],bench=gameChangerBenchmark(season,player,group,key);
-   if((value===null||value===undefined)&&(!bench||bench.value===null||bench.value===undefined))continue;
+   if(key!=='FPS%'&&(value===null||value===undefined)&&(!bench||bench.value===null||bench.value===undefined))continue;
    visible++;const row=document.createElement('tr');if(key===statSelect.value)row.className='gc-selected-stat';
    const name=document.createElement('th');name.scope='row';name.textContent=label;
    const personal=document.createElement('td');personal.textContent=fmt(value,type);
@@ -156,8 +157,8 @@ export function startGameChanger({element:$,onPlayerAuthorized=()=>{},players=[]
  });
  $('gamechanger-access-cancel').addEventListener('click',()=>{pendingPlayer=null;accessInput.value='';accessDialog.close();hidePlayerStats();});
  accessDialog.addEventListener('cancel',event=>{event.preventDefault();pendingPlayer=null;accessInput.value='';accessDialog.close();hidePlayerStats();});
-  Promise.all([fetch('./gamechanger-stats.json?v=gamechanger-metrics-20261027').then(response=>response.json()),fetch('./gamechanger-advanced-stats.json?v=gamechanger-metrics-20261027').then(response=>response.json())]).then(([data,advanced])=>{
-  seasons=data.seasons??[];for(const season of seasons){const extra=advanced[season.id]??{};for(const player of season.players){Object.assign(player.batting,extra.batting?.players?.[player.number]??{});Object.assign(player.pitching,extra.pitching?.players?.[player.number]??{});const pa=Number(player.batting.PA),so=Number(player.batting.SO);player.batting['K%']=pa>0&&Number.isFinite(so)?so/pa*100:null;}for(const key of ['BB/K','BABIP','BA/RISP'])if(extra.batting?.team?.[key]!==undefined)season.benchmarks.batting[key]={value:extra.batting.team[key],kind:'team rate',eligible:14};const pa=Number(season.benchmarks.batting.PA?.value),so=Number(season.benchmarks.batting.SO?.value);if(pa>0&&Number.isFinite(so))season.benchmarks.batting['K%']={value:so/pa*100,kind:'team rate',eligible:14};if(extra.pitching?.team?.['S%']!==undefined)season.benchmarks.pitching['S%']={value:extra.pitching.team['S%'],kind:'team rate',eligible:14};}for(const season of seasons)applyGameChangerExposure(season);ready=true;seasonSelect.replaceChildren(...seasons.map(s=>gcOption(s.label,s.id)));
+  Promise.all([fetch('./gamechanger-stats.json?v=gamechanger-metrics-20261027').then(response=>response.json()),fetch('./gamechanger-advanced-stats.json?v=coach-summary-fps-20261029').then(response=>response.json())]).then(([data,advanced])=>{
+  seasons=data.seasons??[];for(const season of seasons){const extra=advanced[season.id]??{};for(const player of season.players){Object.assign(player.batting,extra.batting?.players?.[player.number]??{});Object.assign(player.pitching,extra.pitching?.players?.[player.number]??{});const pa=Number(player.batting.PA),so=Number(player.batting.SO);player.batting['K%']=pa>0&&Number.isFinite(so)?so/pa*100:null;}for(const key of ['BB/K','BABIP','BA/RISP'])if(extra.batting?.team?.[key]!==undefined)season.benchmarks.batting[key]={value:extra.batting.team[key],kind:'team rate',eligible:14};const pa=Number(season.benchmarks.batting.PA?.value),so=Number(season.benchmarks.batting.SO?.value);if(pa>0&&Number.isFinite(so))season.benchmarks.batting['K%']={value:so/pa*100,kind:'team rate',eligible:14};for(const key of ['S%','FPS%']){for(const player of season.players){const value=extra.pitching?.players?.[player.number]?.[key];if(value!==undefined)player.pitching[key]=value;}if(extra.pitching?.team?.[key]!==undefined)season.benchmarks.pitching[key]={value:extra.pitching.team[key],kind:'team rate'};}}for(const season of seasons)applyGameChangerExposure(season);ready=true;seasonSelect.replaceChildren(...seasons.map(s=>gcOption(s.label,s.id)));
   if(data.last_updated){const date=new Date(data.last_updated+'T12:00:00Z');updated.textContent='LAST UPDATED · '+new Intl.DateTimeFormat('en-CA',{dateStyle:'long',timeZone:'UTC'}).format(date);}
   seasonSelect.value=seasons.find(s=>s.id==='16U')?.id??seasons[0]?.id??'';fillPlayers(false);if(pendingSyncName)syncPlayer(pendingSyncName);
   hidePlayerStats();void refresh();

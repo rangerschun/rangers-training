@@ -1,3 +1,4 @@
+import {startCoachPlayerSummary} from './coach-player-summary.mjs';
 import { TRAINING_BACKEND_CONFIG } from './training-config.mjs';
 import { trainingStorage } from './training-storage.mjs';
 export function defaultPlyoballBrand(player,area='targets'){
@@ -63,7 +64,7 @@ export function parseGameChangerCsv(text){
  return {headers,glossary,rows:players,totals:totals[0]};
 }
 export function gameChangerSnapshot(text,{slot,label,fileName,importedOn,eraInnings=7,rangeKey='full'}){
- if(!['full','last_month','last_10'].includes(rangeKey))throw Error('Choose the exported stats range.');
+ if(!['full','last_10'].includes(rangeKey))throw Error('Choose the exported stats range.');
  if(!['current','previous'].includes(slot)||typeof label!=='string'||!label.trim()||label.length>80)throw Error('Choose current or previous season and enter its season name.');
  if(typeof fileName!=='string'||fileName.length>180||!fileName.toLowerCase().endsWith('.csv'))throw Error('Choose a .csv file.');
  if(![7,9].includes(Number(eraInnings))||!/^\d{4}-\d{2}-\d{2}$/.test(importedOn))throw Error('Check the import date and ERA innings.');
@@ -166,13 +167,14 @@ export function applySharedGameChangerSnapshots(base,snapshots,hashes={}){
 const ROSTER=new Set(['Rory Chi','Ambrose Chun','Michael Kim','Max Hall','Carson Pavao','Jayden Salas-Smith','Andre Stajan','Aidan Scane','Joseph Mestre','Nathan Bussey','Raiden Huether','Josh Mosakos','Walker Thompson','Carter Nelson']);const GROUPS={
  batting:{label:'Batting',stats:[
   ['OPS','OPS','ops',1],['AVG','AVG','avg',1],['OBP','OBP','avg',1],['SLG','SLG','avg',1],
+  ['BB/K','BB/K','ratio',1],['BABIP','BABIP','avg',1],['BA/RISP','BA/RISP','avg',1],['K%','K%','pct100',-1],
   ['H','Hits','int',1],['1B','Singles','int',1],['2B','Doubles','int',1],['3B','Triples','int',1],['XBH','Extra-base hits','int',1],['HR','Home runs','int',1],
-  ['RBI','Runs batted in','int',1],['SB','Stolen bases','int',1],['BB/K','BB/K','ratio',1],['BABIP','BABIP','avg',1],['BA/RISP','BA/RISP','avg',1],['K%','K%','pct100',-1],
+  ['RBI','Runs batted in','int',1],['SB','Stolen bases','int',1],
  ]},
  pitching:{label:'Pitching',stats:[
   
   ['WHIP','WHIP','whip',-1],
-  ['SO','SO','int',1],['BB','BB','int',-1],['S%','S%','pct100',1],
+  ['FPS%','First-pitch strike %','pct100',1],['S%','Strike %','pct100',1],['SO','SO','int',1],['BB','BB','int',-1],
  ]},
  fielding:{label:'Fielding',stats:[
   ['TC','Total chances','int',0],['A','Assists','int',0],['PO','Putouts','int',0],['FPCT','Fielding percentage','fpct',1],['E','Errors','int',-1],['DP','Double plays','int',1],['TP','Triple plays','int',1]
@@ -204,7 +206,7 @@ export function startGameChanger({element:$,onPlayerAuthorized=()=>{},players=[]
  const message=$('gamechanger-message'),details=$('gamechanger-player-stats'),summary=$('gamechanger-summary'),comparison=$('gamechanger-comparison'),updated=$('gamechanger-updated');
  const accessDialog=$('gamechanger-access-dialog'),accessForm=$('gamechanger-access-form'),accessInput=$('gamechanger-access-password'),accessError=$('gamechanger-access-error'); let pendingPlayer=null,authorizedPlayerKey='',pendingSyncName='';
  const gcOption=(text,value)=>{const n=document.createElement('option');n.textContent=text;n.value=value;return n;};
- const rangeLabels={full:'Full season stats',last_month:'Last month',last_10:'Last 10 games'};
+ const rangeLabels={full:'Full season stats',last_10:'Last 10 games'};
  const buttons=[...document.querySelectorAll('[data-gamechanger-group]')];for(const button of buttons)if(button.dataset.gamechangerGroup==='fielding')button.hidden=true;let seasons=[],group='batting',busy=false,ready=false; function playerKey(season,player){return season&&player?season.id+'|'+player.id:'';}
  function selectedRangeSeason(baseSeason){
   if(!baseSeason)return null;const key=rangeSelect.value||'full';
@@ -276,7 +278,7 @@ export function startGameChanger({element:$,onPlayerAuthorized=()=>{},players=[]
   const body=document.createElement('tbody');let visible=0;
   for(const [key,label,type,direction] of (hasStats?config.stats:[])){
    const value=player[group][key],bench=gameChangerBenchmark(season,player,group,key);
-   if((value===null||value===undefined)&&(!bench||bench.value===null||bench.value===undefined))continue;
+   if(key!=='FPS%'&&(value===null||value===undefined)&&(!bench||bench.value===null||bench.value===undefined))continue;
    visible++;const row=document.createElement('tr');if(key===statSelect.value)row.className='gc-selected-stat';
    const name=document.createElement('th');name.scope='row';name.textContent=label;
    const personal=document.createElement('td');personal.textContent=fmt(value,type);
@@ -320,8 +322,8 @@ export function startGameChanger({element:$,onPlayerAuthorized=()=>{},players=[]
  });
  $('gamechanger-access-cancel').addEventListener('click',()=>{pendingPlayer=null;accessInput.value='';accessDialog.close();hidePlayerStats();});
  accessDialog.addEventListener('cancel',event=>{event.preventDefault();pendingPlayer=null;accessInput.value='';accessDialog.close();hidePlayerStats();});
-  Promise.all([fetch('./gamechanger-stats.json?v=gamechanger-metrics-20261027').then(response=>response.json()),fetch('./gamechanger-advanced-stats.json?v=gamechanger-metrics-20261027').then(response=>response.json())]).then(([data,advanced])=>{
-  seasons=data.seasons??[];for(const season of seasons){const extra=advanced[season.id]??{};for(const player of season.players){Object.assign(player.batting,extra.batting?.players?.[player.number]??{});Object.assign(player.pitching,extra.pitching?.players?.[player.number]??{});const pa=Number(player.batting.PA),so=Number(player.batting.SO);player.batting['K%']=pa>0&&Number.isFinite(so)?so/pa*100:null;}for(const key of ['BB/K','BABIP','BA/RISP'])if(extra.batting?.team?.[key]!==undefined)season.benchmarks.batting[key]={value:extra.batting.team[key],kind:'team rate',eligible:14};const pa=Number(season.benchmarks.batting.PA?.value),so=Number(season.benchmarks.batting.SO?.value);if(pa>0&&Number.isFinite(so))season.benchmarks.batting['K%']={value:so/pa*100,kind:'team rate',eligible:14};if(extra.pitching?.team?.['S%']!==undefined)season.benchmarks.pitching['S%']={value:extra.pitching.team['S%'],kind:'team rate',eligible:14};}for(const season of seasons)applyGameChangerExposure(season);ready=true;seasonSelect.replaceChildren(...seasons.map(s=>gcOption(s.label,s.id)));
+  Promise.all([fetch('./gamechanger-stats.json?v=gamechanger-metrics-20261027').then(response=>response.json()),fetch('./gamechanger-advanced-stats.json?v=coach-summary-fps-20261029').then(response=>response.json())]).then(([data,advanced])=>{
+  seasons=data.seasons??[];for(const season of seasons){const extra=advanced[season.id]??{};for(const player of season.players){Object.assign(player.batting,extra.batting?.players?.[player.number]??{});Object.assign(player.pitching,extra.pitching?.players?.[player.number]??{});const pa=Number(player.batting.PA),so=Number(player.batting.SO);player.batting['K%']=pa>0&&Number.isFinite(so)?so/pa*100:null;}for(const key of ['BB/K','BABIP','BA/RISP'])if(extra.batting?.team?.[key]!==undefined)season.benchmarks.batting[key]={value:extra.batting.team[key],kind:'team rate',eligible:14};const pa=Number(season.benchmarks.batting.PA?.value),so=Number(season.benchmarks.batting.SO?.value);if(pa>0&&Number.isFinite(so))season.benchmarks.batting['K%']={value:so/pa*100,kind:'team rate',eligible:14};for(const key of ['S%','FPS%']){for(const player of season.players){const value=extra.pitching?.players?.[player.number]?.[key];if(value!==undefined)player.pitching[key]=value;}if(extra.pitching?.team?.[key]!==undefined)season.benchmarks.pitching[key]={value:extra.pitching.team[key],kind:'team rate'};}}for(const season of seasons)applyGameChangerExposure(season);ready=true;seasonSelect.replaceChildren(...seasons.map(s=>gcOption(s.label,s.id)));
   if(data.last_updated){const date=new Date(data.last_updated+'T12:00:00Z');updated.textContent='LAST UPDATED · '+new Intl.DateTimeFormat('en-CA',{dateStyle:'long',timeZone:'UTC'}).format(date);}
   seasonSelect.value=seasons.find(s=>s.id==='16U')?.id??seasons[0]?.id??'';fillPlayers(false);if(pendingSyncName)syncPlayer(pendingSyncName);
   hidePlayerStats();void refresh();
@@ -3836,8 +3838,9 @@ axePrograms=startAxePrograms({element:$,players:PLAYER_LABELS,flow:workoutFlow,d
 tabPlayers=startTabPlayers({players:PLAYER_LABELS,element:$});
 const playerAccess=startPlayerAccess({players:PLAYER_LABELS,hashes:PLAYER_JERSEY_HASHES,element:$,matches:async(player,password)=>{if(!sheetSync)throw Error('Google Sheet is unavailable. Please reload and try again.');return sheetSync.login(player,password);},cloudStatus:player=>sheetSync?.status(player)??{ready:false,message:'Google Sheet is connecting…'},onRetry:(player,view)=>{if(sheetSync?.status(player).conflict){void sheetSync.review(player,message=>window.confirm(message)).catch(()=>{});return;}if(!sheetSync?.hasSession(player)){playerAccess.revoke(player);playerAccess.activate(view);return;}void sheetSync.refresh(player).catch(()=>{playerAccess.revoke(player);playerAccess.activate(view);});}});
 const coachAccess=startCoachAccess({element:$,matches:async password=>{await refreshCoachSheet(password);coachSheetCode=password;return true;},onUnlock:()=>{workoutOverview?.refresh();pulseLog.refresh();}});
+const coachSummary=startCoachPlayerSummary({players:PLAYER_LABELS,element:$,download:downloadFile,isCoach:()=>coachAccess.isVerified(),refresh:()=>refreshCoachSheet(coachSheetCode)});
 const gameChangerCoach=startGameChangerCoach({element:$,publish:request=>gameChangerRemote('publishGameChangerStats',[{...request,code:request.code||coachSheetCode}]),onPublished:seasons=>gameChanger.apply(seasons),isCoach:()=>coachAccess.isVerified()});
-$('coach-access-lock').addEventListener('click',()=>{coachSheetCode='';gameChangerCoach.reset();});
+$('coach-access-lock').addEventListener('click',()=>{coachSheetCode='';gameChangerCoach.reset();coachSummary.clear();});
 const routeLabels = { workouts: 'WORKOUT LOG', throwing: 'THROWING ROUTINE',  targets: 'PLYOCARE LAB', tracker: 'BASEBALL THROWS', pulse: 'DRIVELINE PULSE', blast: 'BLAST MOTION', overspeed: 'OVERSPEED PROGRAM', axe:'AXE BATS', concentration: 'VISION TRAINING', gamechanger: 'GAMECHANGER STATS', approach: 'TRAINING APPROACH', coach: 'COACH DESK' };
 function route() {
   const key = location.hash.slice(1);
@@ -3893,7 +3896,7 @@ function hydratePlayerRecords(player,records){
  }finally{hydratingSheet=false;}
 }
 async function refreshCoachSheet(code){
- const [all,workouts,pulse]=await Promise.all([gameChangerRemote('getCoachPlayerData',[{code}]),gameChangerRemote('getCoachWorkouts',[{code}]),gameChangerRemote('getCoachPulse',[{code}])]);await sheetSync.applyCoach(all);workoutOverview.applyShared(workouts,code);pulseLog.applyShared(pulse,code);
+ const [all,workouts,pulse]=await Promise.all([gameChangerRemote('getCoachPlayerData',[{code}]),gameChangerRemote('getCoachWorkouts',[{code}]),gameChangerRemote('getCoachPulse',[{code}])]);await sheetSync.applyCoach(all);coachSummary.applyShared(all);workoutOverview.applyShared(workouts,code);pulseLog.applyShared(pulse,code);
 }
 sheetSync=startSheetSync({call:gameChangerRemote,journal:teamJournal,apply:hydratePlayerRecords,validate:validateJournalEvent,onState:()=>playerAccess.refresh()});
 function savePlayerSettings(player,patch){

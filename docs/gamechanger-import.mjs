@@ -12,7 +12,7 @@ export function parseGameChangerCsv(text){
  return {headers,glossary,rows:players,totals:totals[0]};
 }
 export function gameChangerSnapshot(text,{slot,label,fileName,importedOn,eraInnings=7,rangeKey='full'}){
- if(!['full','last_month','last_10'].includes(rangeKey))throw Error('Choose the exported stats range.');
+ if(!['full','last_10'].includes(rangeKey))throw Error('Choose the exported stats range.');
  if(!['current','previous'].includes(slot)||typeof label!=='string'||!label.trim()||label.length>80)throw Error('Choose current or previous season and enter its season name.');
  if(typeof fileName!=='string'||fileName.length>180||!fileName.toLowerCase().endsWith('.csv'))throw Error('Choose a .csv file.');
  if(![7,9].includes(Number(eraInnings))||!/^\d{4}-\d{2}-\d{2}$/.test(importedOn))throw Error('Check the import date and ERA innings.');
