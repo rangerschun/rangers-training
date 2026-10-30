@@ -1,3 +1,4 @@
+import {startTeamSchedule} from './team-schedule-ui.mjs?v=team-calendar-20261029';
 import {startCoachPasswordReset} from './coach-password-reset.mjs?v=coach-password-reset-20261029';
 import {startCoachPlayerSummary} from './coach-player-summary.mjs';
 import { TRAINING_BACKEND_CONFIG } from './training-config.mjs';
@@ -13,11 +14,11 @@ import {startCoachAccess} from './coach-access.mjs?v=rangers-organization-202610
 import {startDeviceMigration} from './device-migration-ui.mjs?v=rangers-organization-20261025';
 import {prepareDemoReset,runDemoReset} from './demo-reset.mjs?v=rangers-organization-20261025';
 import {isAxeWorkout} from './axe-progress.mjs?v=rangers-organization-20261025';
-import {startPlayerAccess} from './player-access.mjs?v=personal-passwords-20261029';
+import {startPlayerAccess} from './player-access.mjs?v=team-calendar-20261029';
 import {startAxePrograms} from './axe-program-ui.mjs?v=rangers-organization-20261025';
 import {startWorkoutSchedule} from './workout-schedule-ui.mjs?v=rangers-organization-20261025';
 import { installGoogleBridge } from './google-bridge.mjs?v=personal-passwords-20261029';
-import { startTabPlayers,TAB_PLAYER_IDS } from './tab-players.mjs?v=player-jersey-check-20261025';
+import { startTabPlayers,TAB_PLAYER_IDS } from './tab-players.mjs?v=team-calendar-20261029';
 import { startThrowingCalendar } from './throwing-calendar-ui.mjs?v=throwing-save-close-20261025';
 import { isThrowingWorkout } from './workout-record-tools.mjs?v=schedule-auto-refresh-20261025';
 import { startOverSpeedProgression } from './overspeed-progression-ui.mjs?v=rangers-organization-20261025';
@@ -59,7 +60,7 @@ for(const drill of DRILLS){const link=workoutDemoLink(WORKOUT_LIBRARY.drills[dri
 let overspeedLog = null;
 let workoutOverview = null;
 let teamJournal = null;
-let sheetSync=null,hydratingSheet=false,coachSheetCode='';
+let sheetSync=null,hydratingSheet=false,coachSheetCode='',calendarCoachAccess=()=>false;
 let playerSettings=[];try{playerSettings=JSON.parse(trainingStorage.getItem('rangers-player-settings-v1')||'[]');}catch{}
 let tabPlayers = null;
 let axePrograms = null;
@@ -438,7 +439,10 @@ $('overspeed-player').addEventListener('change',()=>{$('overspeed-clear-entries'
 $('overspeed-clear-entries').addEventListener('click',()=>{const player=$('overspeed-player').value;if(!player)return;const count=overspeedLog.records().filter(r=>r.player===player).length+overspeedProtocol.records().filter(r=>r.player===player).length;if(!count){$('overspeed-announcement').textContent='No saved entries to clear.';return;}if(!window.confirm(`Clear all saved OverSpeed readings and workout progress for ${player}, and reset the current forms? Other players and trackers are kept.`))return;overspeedLog.clearPlayer(player);overspeedProtocol.clearPlayer(player);$('overspeed-announcement').textContent='OverSpeed entries cleared for the selected player.';});
 const pulseLog=startPulse({getCoachCode:()=>coachSheetCode,players:PLAYER_LABELS,scope:rosterHash.toString(16),element:$,download:downloadFile,onChange:(before,after)=>{if(!hydratingSheet)teamJournal?.record('pulse',before,after);}});
 const visionVideos=startVisionVideos({element:$});
-function gameChangerRemote(method,args=[]){const exactJson=['authenticatePlayer','getPlayerData','writePlayerJournal','getCoachPlayerData','resetPlayerPassword'].includes(method);if(exactJson)args=args.map(value=>JSON.stringify(value));return new Promise((resolve,reject)=>{if(!globalThis.google?.script?.run){reject(Error('Shared coach connection is unavailable.'));return;}const timer=setTimeout(()=>reject(Error('The shared stats request was not confirmed. Try again.')),25000);globalThis.google.script.run.withSuccessHandler(result=>{clearTimeout(timer);try{resolve(exactJson&&typeof result==='string'?JSON.parse(result):result);}catch{reject(Error('Google Sheet returned unreadable records.'));}}).withFailureHandler(error=>{clearTimeout(timer);reject(Error(error?.message||'Shared stats could not be confirmed. Use your private coach code or coach account.'));})[method](...args);});}
+for(const name of PLAYER_LABELS){const option=document.createElement('option');option.value=option.textContent=name;$('calendar-player').append(option);}
+const teamCalendar=startTeamSchedule({config:{remote:true},element:$,download:downloadFile,readRemote:()=>calendarCoachAccess()?gameChangerRemote('getPlayerTeamCalendar',[{coach:true,code:coachSheetCode}]):sheetSync.readCalendar($('calendar-player').value)});
+$('calendar-player').addEventListener('change',()=>{teamCalendar.clear();if(playerAccess.isVerified($('calendar-player').value))void teamCalendar.activate();});
+function gameChangerRemote(method,args=[]){const exactJson=['authenticatePlayer','getPlayerData','writePlayerJournal','getCoachPlayerData','resetPlayerPassword','getPlayerTeamCalendar'].includes(method);if(exactJson)args=args.map(value=>JSON.stringify(value));return new Promise((resolve,reject)=>{if(!globalThis.google?.script?.run){reject(Error('Shared coach connection is unavailable.'));return;}const timer=setTimeout(()=>reject(Error('The shared stats request was not confirmed. Try again.')),25000);globalThis.google.script.run.withSuccessHandler(result=>{clearTimeout(timer);try{resolve(exactJson&&typeof result==='string'?JSON.parse(result):result);}catch{reject(Error('Google Sheet returned unreadable records.'));}}).withFailureHandler(error=>{clearTimeout(timer);reject(Error(error?.message||'Shared stats could not be confirmed. Use your private coach code or coach account.'));})[method](...args);});}
 const gameChanger=startGameChanger({element:$,onPlayerAuthorized:player=>tabPlayers?.setCurrent(player),players:PLAYER_LABELS,hashes:PLAYER_JERSEY_HASHES,readRemote:()=>gameChangerRemote('getGameChangerStats'),authenticatePlayer:(player,password,newPassword)=>{const name=player.name.split(/\s+/)[0];if(!PLAYER_LABELS.includes(name)||!sheetSync)throw Error('This player is not connected to Google Sheet.');return sheetSync.login(name,password,newPassword);}});
 const concentrationGrid=startConcentrationGrid({element:$,players:PLAYER_LABELS,flow:workoutFlow,getDailyRecords:()=>[],readRemote:()=>teamJournal.readConcentrationSummary()});
 
@@ -446,13 +450,14 @@ const concentrationGrid=startConcentrationGrid({element:$,players:PLAYER_LABELS,
 const throwingCalendar=startThrowingCalendar({players:PLAYER_LABELS,scope:rosterHash.toString(16),element:$,flow:throwingFlow,subscribe:listener=>workoutFlow.subscribe(listener),onStartChange:(player,date)=>savePlayerSettings(player,{throwing_start_date:date})});
 axePrograms=startAxePrograms({element:$,players:PLAYER_LABELS,flow:workoutFlow,download:downloadFile,onNavigate:()=>{tabPlayers?.setCurrent($('axe-player').value);location.hash='#axe';}});
 tabPlayers=startTabPlayers({players:PLAYER_LABELS,element:$});
-const playerAccess=startPlayerAccess({players:PLAYER_LABELS,hashes:PLAYER_JERSEY_HASHES,element:$,matches:async(player,password,hashes,newPassword)=>{if(!sheetSync)throw Error('Google Sheet is unavailable. Please reload and try again.');return sheetSync.login(player,password,newPassword);},cloudStatus:player=>sheetSync?.status(player)??{ready:false,message:'Google Sheet is connecting…'},onRetry:(player,view)=>{if(sheetSync?.status(player).conflict){void sheetSync.review(player,message=>window.confirm(message)).catch(()=>{});return;}if(!sheetSync?.hasSession(player)){playerAccess.revoke(player);playerAccess.activate(view);return;}void sheetSync.refresh(player).catch(()=>{playerAccess.revoke(player);playerAccess.activate(view);});}});
+const playerAccess=startPlayerAccess({players:PLAYER_LABELS,hashes:PLAYER_JERSEY_HASHES,element:$,matches:async(player,password,hashes,newPassword)=>{if(!sheetSync)throw Error('Google Sheet is unavailable. Please reload and try again.');return sheetSync.login(player,password,newPassword);},canAccessView:view=>view==='calendar'&&calendarCoachAccess(),cloudStatus:player=>sheetSync?.status(player)??{ready:false,message:'Google Sheet is connecting…'},onRetry:(player,view)=>{if(sheetSync?.status(player).conflict){void sheetSync.review(player,message=>window.confirm(message)).catch(()=>{});return;}if(!sheetSync?.hasSession(player)){playerAccess.revoke(player);playerAccess.activate(view);return;}void sheetSync.refresh(player).catch(()=>{playerAccess.revoke(player);playerAccess.activate(view);});}});
 const coachAccess=startCoachAccess({element:$,matches:async password=>{await refreshCoachSheet(password);coachSheetCode=password;return true;},onUnlock:()=>{workoutOverview?.refresh();pulseLog.refresh();}});
+calendarCoachAccess=()=>coachAccess.isVerified();
 const coachSummary=startCoachPlayerSummary({players:PLAYER_LABELS,element:$,download:downloadFile,isCoach:()=>coachAccess.isVerified(),refresh:()=>refreshCoachSheet(coachSheetCode)});
 const coachPasswordReset=startCoachPasswordReset({element:$,players:PLAYER_LABELS,isCoach:()=>coachAccess.isVerified(),reset:player=>gameChangerRemote('resetPlayerPassword',[{player,code:coachSheetCode}])});
 const gameChangerCoach=startGameChangerCoach({element:$,publish:request=>gameChangerRemote('publishGameChangerStats',[{...request,code:request.code||coachSheetCode}]),onPublished:seasons=>gameChanger.apply(seasons),isCoach:()=>coachAccess.isVerified()});
-$('coach-access-lock').addEventListener('click',()=>{coachSheetCode='';gameChangerCoach.reset();coachSummary.clear();coachPasswordReset.clear();});
-const routeLabels = { workouts: 'WORKOUT LOG', throwing: 'THROWING ROUTINE',  targets: 'PLYOCARE LAB', tracker: 'BASEBALL THROWS', pulse: 'DRIVELINE PULSE', blast: 'BLAST MOTION', overspeed: 'OVERSPEED PROGRAM', axe:'AXE BATS', concentration: 'VISION TRAINING', gamechanger: 'GAMECHANGER STATS', approach: 'TRAINING APPROACH', coach: 'COACH DESK' };
+$('coach-access-lock').addEventListener('click',()=>{coachSheetCode='';gameChangerCoach.reset();coachSummary.clear();coachPasswordReset.clear();teamCalendar.clear();playerAccess.refresh();});
+const routeLabels = { workouts: 'WORKOUT LOG', throwing: 'THROWING ROUTINE',  targets: 'PLYOCARE LAB', tracker: 'BASEBALL THROWS', pulse: 'DRIVELINE PULSE', blast: 'BLAST MOTION', overspeed: 'OVERSPEED PROGRAM', axe:'AXE BATS', concentration: 'VISION TRAINING', gamechanger: 'GAMECHANGER STATS', approach: 'TRAINING APPROACH', coach: 'COACH DESK', calendar:'TEAM CALENDAR' };
 function route() {
   const key = location.hash.slice(1);
   const view = Object.hasOwn(routeLabels, key) ? key : 'workouts';
@@ -470,10 +475,11 @@ function route() {
   $('breadcrumb-current').textContent = routeLabels[view];
   
   if(Object.hasOwn(TAB_PLAYER_IDS,view)){const name=$(TAB_PLAYER_IDS[view]).value;if(name&&playerAccess.isVerified(name)&&sheetSync?.hasSession(name))void sheetSync.refresh(name).catch(()=>{});}
+  if(view==='calendar'&&(calendarCoachAccess()||playerAccess.isVerified($('calendar-player').value)&&sheetSync?.ready($('calendar-player').value)))void teamCalendar.activate();
   if(view==='blast')renderBlastHistory();
   if(view==='concentration'){visionVideos.refresh();void concentrationGrid.refreshTeam();}
   if(view==='coach'&&coachAccess.isVerified())void refreshCoachSheet(coachSheetCode).catch(error=>{$('team-journal-status').textContent=error.message;});
-  document.title = `Rangers | ${view === 'targets' ? 'PlyoCare Lab' : {throwing:'Throwing routine',tracker:'Baseball throws',pulse:'Driveline Pulse',blast:'Blast Motion',workouts:'Workout log',overspeed:'OverSpeed program',axe:'Axe Bats',concentration:'Vision Training',gamechanger:'GameChanger stats',approach:'Training approach',coach:'Coach desk'}[view]}`;
+  document.title = `Rangers | ${view === 'targets' ? 'PlyoCare Lab' : {throwing:'Throwing routine',tracker:'Baseball throws',pulse:'Driveline Pulse',blast:'Blast Motion',workouts:'Workout log',overspeed:'OverSpeed program',axe:'Axe Bats',concentration:'Vision Training',gamechanger:'GameChanger stats',approach:'Training approach',coach:'Coach desk',calendar:'Team calendar'}[view]}`;
   if (started) {
     const heading = $(`view-${view}`).querySelector('h1');
     heading.tabIndex = -1;
