@@ -246,7 +246,7 @@ export function startGameChanger({element:$,onPlayerAuthorized=()=>{},players=[]
   message.hidden=true;
   summary.replaceChildren(
    metricCard(season,player,'OPS','OPS','ops',1),metricCard(season,player,'AVG','Batting average','avg',1),
-   metricCard(season,player,'H','Hits','int',1),metricCard(season,player,'RBI','Runs batted in','int',1)
+   metricCard(season,player,'BA/RISP','BA/RISP','avg',1),metricCard(season,player,'BB/K','BB/K','ratio',1)
   );
   const config=GROUPS[group],hasStats=group==='batting'?Number(player.batting.PA)>0:Number(player.pitching.GP)>0;
   const available=config.stats.filter(([key])=>hasStats&&player[group][key]!==null&&player[group][key]!==undefined&&player[group][key]!==''&&Number.isFinite(Number(player[group][key]))&&Number.isFinite(Number(gameChangerBenchmark(season,player,group,key)?.value)));
