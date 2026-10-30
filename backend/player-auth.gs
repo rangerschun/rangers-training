@@ -5,6 +5,7 @@ function personalPasswordKey_(player){return 'player-personal-auth-v1:'+digest_(
 function personalPasswordRecord_(properties,player){
  const raw=properties.getProperty(personalPasswordKey_(player));if(!raw)return null;
  let record;try{record=JSON.parse(raw);}catch{throw Error('Your coach needs to check the password record.');}
+ if(record.version===1&&record.scheme==='legacy'&&/^[a-f0-9]{32}$/.test(record.revision))return record;
  if(record.version!==1||!/^[a-f0-9]{48}$/.test(record.salt)||record.iterations!==PERSONAL_PASSWORD_ITERATIONS||!/^[a-f0-9]{64}$/.test(record.verifier)||!/^[a-f0-9]{32}$/.test(record.revision))throw Error('Your coach needs to check the password record.');
  return record;
 }
@@ -22,16 +23,16 @@ function authenticatePlayer(request){
  const properties=PropertiesService.getScriptProperties(),players=JSON.parse(properties.getProperty('players')||'[]'),player=request?.player;
  if(typeof player!=='string'||!players.includes(player)||!PLAYER_LOGIN_HASHES?.[player])throw Error('That password does not match. Try again.');
  let personal=personalPasswordRecord_(properties,player);
- if(request?.mode==='challenge'){const result={player,scheme:personal?'pbkdf2-sha256':'legacy',salt:personal?.salt??null,iterations:PERSONAL_PASSWORD_ITERATIONS,revision:personal?.revision??'legacy'};return json?JSON.stringify(result):result;}
+ if(request?.mode==='challenge'){const result={player,scheme:personal&&personal.scheme!=='legacy'?'pbkdf2-sha256':'legacy',salt:personal?.salt??null,iterations:PERSONAL_PASSWORD_ITERATIONS,revision:personal?.revision??'legacy'};return json?JSON.stringify(result):result;}
  const lock=LockService.getScriptLock();if(!lock.tryLock(10000))throw Error('The password service is busy. Try again shortly.');
  try{
   personal=personalPasswordRecord_(properties,player);const revision=personal?.revision??'legacy',cache=CacheService.getScriptCache(),failureKey='player-auth-failures:'+digest_(player),failures=Number(cache.get(failureKey)||0);
   if(failures>=20)throw Error('Too many password attempts. Wait 10 minutes and try again.');
   if(request.auth_revision!==undefined&&request.auth_revision!==revision)throw Error('Your password changed on another device. Sign in again.');
   let valid=false;
-  if(personal){if(typeof request.password_proof==='string'&&/^[a-f0-9]{64}$/.test(request.password_proof))valid=personalPasswordEqual_(personal.verifier,personalPasswordVerifier_(properties,player,personal.salt,request.password_proof,false));}
+  if(personal&&personal.scheme!=='legacy'){if(typeof request.password_proof==='string'&&/^[a-f0-9]{64}$/.test(request.password_proof))valid=personalPasswordEqual_(personal.verifier,personalPasswordVerifier_(properties,player,personal.salt,request.password_proof,false));}
   else{const password=typeof request.password==='string'?request.password.trim().replace(/^#/,''):'';valid=/^\d{1,3}$/.test(password)&&personalPasswordEqual_(digest_('rangers-jersey-v1\0'+player+'\0'+password),PLAYER_LOGIN_HASHES[player]);}
-  if(!valid){cache.put(failureKey,String(failures+1),600);throw Error(personal&&!request.password_proof?'Reload the page to use your personal password.':'That password does not match. Try again.');}
+  if(!valid){cache.put(failureKey,String(failures+1),600);throw Error(personal&&personal.scheme!=='legacy'&&!request.password_proof?'Reload the page to use your personal password.':'That password does not match. Try again.');}
   const changing=Object.prototype.hasOwnProperty.call(request,'new_password_proof');
   if(changing){
    if(typeof request.new_password_proof!=='string'||!/^[a-f0-9]{64}$/.test(request.new_password_proof)||typeof request.new_password_salt!=='string'||!/^[a-f0-9]{48}$/.test(request.new_password_salt)||request.new_password_iterations!==PERSONAL_PASSWORD_ITERATIONS)throw Error('The new password could not be verified. Reload and try again.');
@@ -49,4 +50,16 @@ function authenticatePlayerSession_(request){
  const personal=personalPasswordRecord_(PropertiesService.getScriptProperties(),request?.player),revision=personal?.revision??'legacy';
  if(!session||session.player!==request?.player||(session.revision??'legacy')!==revision)throw Error('Your session expired. Enter your password again.');
  return session.player;
+}
+
+function resetPlayerPassword(request){
+ const json=typeof request==='string';if(json){if(request.length>2000)throw Error('Invalid coach request.');request=JSON.parse(request);}
+ const properties=authenticateCoach_(request?.code),player=request?.player,players=JSON.parse(properties.getProperty('players')||'[]');
+ if(typeof player!=='string'||!players.includes(player)||!PLAYER_LOGIN_HASHES?.[player])throw Error('Choose a roster player.');
+ const lock=LockService.getScriptLock();if(!lock.tryLock(10000))throw Error('The password service is busy. Try again shortly.');
+ try{
+  properties.setProperty(personalPasswordKey_(player),JSON.stringify({version:1,scheme:'legacy',revision:Utilities.getUuid().replace(/-/g,'')}));
+  CacheService.getScriptCache().remove('player-auth-failures:'+digest_(player));
+  const result={player,password_reset:true,scheme:'legacy'};return json?JSON.stringify(result):result;
+ }finally{lock.releaseLock();}
 }
