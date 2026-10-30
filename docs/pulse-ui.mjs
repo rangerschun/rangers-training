@@ -1,3 +1,4 @@
+import { trainingStorage } from './training-storage.mjs';
 import { PULSE_METRICS, validatePulseRecords, upsertPulseRecord, latestPulseRecords, pulseRecordsToCsv } from './pulse.mjs?v=schedule-auto-refresh-20261025';
 
 export function startPulse({players,scope,element:$,download,onChange,getCoachCode=()=>''}){
@@ -9,11 +10,11 @@ export function startPulse({players,scope,element:$,download,onChange,getCoachCo
   for(const metric of PULSE_METRICS){
     const label=node('label','',metric.label),input=node('input');input.id='pulse-'+metric.key;input.type='number';input.inputMode=metric.integer?'numeric':'decimal';input.min=String(metric.min);if(metric.max!==undefined)input.max=String(metric.max);input.step=metric.integer?'1':'any';input.placeholder='—';input.autocomplete='off';label.htmlFor=input.id;label.append(input,node('small','',metric.unit));$(metric.primary?'pulse-primary-metrics':'pulse-extra-metrics').append(label);
   }
-  try{const raw=localStorage.getItem(key);if(raw){const data=JSON.parse(raw);if(data.version!==1)throw Error();validatePulseRecords(data.records,players);records=data.records;}}
+  try{const raw=trainingStorage.getItem(key);if(raw){const data=JSON.parse(raw);if(data.version!==1)throw Error();validatePulseRecords(data.records,players);records=data.records;}}
   catch{readable=false;saved=false;$('pulse-storage').textContent='Saved Pulse records could not be read. Existing data is preserved. New entries stay in this open page; export before closing.';}
   const selected=()=>records.filter(r=>r.player===$('pulse-player').value).sort((a,b)=>b.session_date.localeCompare(a.session_date));
   const value=(r,key)=>r?.[key]===null||r?.[key]===undefined?'—':String(r[key]);
-  function persist(next){const before=records;records=next;if(readable){try{localStorage.setItem(key,JSON.stringify({version:1,records}));saved=true;$('pulse-storage').textContent='';}catch{saved=false;$('pulse-storage').textContent='Device saving is unavailable. Changes stay in this open page; export before closing.';}}onChange?.(before,next);renderCoach();}
+  function persist(next){const before=records;records=next;if(readable){try{trainingStorage.setItem(key,JSON.stringify({version:1,records}));saved=true;$('pulse-storage').textContent='';}catch{saved=false;$('pulse-storage').textContent='Device saving is unavailable. Changes stay in this open page; export before closing.';}}onChange?.(before,next);renderCoach();}
   function loadDay(){
     const record=records.find(r=>r.player===$('pulse-player').value&&r.session_date===$('pulse-date').value);
     for(const metric of PULSE_METRICS)$('pulse-'+metric.key).value=record?.[metric.key]??'';$('pulse-notes').value=record?.notes??'';

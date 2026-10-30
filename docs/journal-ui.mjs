@@ -1,3 +1,4 @@
+import { trainingStorage } from './training-storage.mjs';
 // Integrated by app.mjs after the player device journals have loaded.
 // Apps Script is the only remote transport. A static preview never claims submission.
 export function startTeamJournal({players,scope,getRecords,element,download,changes,toCsv,validate,cloud=false,getRevision=()=>null,onPending=()=>{}}){
@@ -9,10 +10,10 @@ export function startTeamJournal({players,scope,getRecords,element,download,chan
     const note=document.getElementById('blast-coach-sheet-status');if(note)note.textContent='One private coach spreadsheet receives entries after you connect with your player code below.';
     const blastNote=document.getElementById('blast-team-connection');if(blastNote)blastNote.textContent='Use your player code in Coach desk to send saved entries. This is separate from a Blast sensor-account connection.';
   }
-  try{const saved=localStorage.getItem(key);if(saved){const data=JSON.parse(saved);if(data.version!==1||!Array.isArray(data.events))throw Error();const ids=new Set();for(const event of data.events){validate(event,players);if(ids.has(event.event_id))throw Error();ids.add(event.event_id);}events=data.events;}}
+  try{const saved=trainingStorage.getItem(key);if(saved){const data=JSON.parse(saved);if(data.version!==1||!Array.isArray(data.events))throw Error();const ids=new Set();for(const event of data.events){validate(event,players);if(ids.has(event.event_id))throw Error();ids.add(event.event_id);}events=data.events;}}
   catch{readable=false;lastError='Saved coach entries could not be read. Existing data is preserved; export new entries before closing.';}
   const makeId=()=>globalThis.crypto?.randomUUID?.()??`entry-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  function persist(){if(!readable)return;try{localStorage.setItem(key,JSON.stringify({version:1,events}));saving=true;}catch{saving=false;lastError='Device storage is full or unavailable. Export entries before closing.';}}
+  function persist(){if(!readable)return;try{trainingStorage.setItem(key,JSON.stringify({version:1,events}));saving=true;}catch{saving=false;lastError='Device storage is full or unavailable. Export entries before closing.';}}
   function render(){
     const pending=events.filter(e=>!e.received_at),count=pending.length;if(cloud){element('team-journal-status').textContent=`${count} change(s) waiting for Google Sheet confirmation. Player histories load from this same Sheet after password entry.`;element('team-journal-summary').textContent=`${events.length-count} changes confirmed · ${count} waiting`;element('team-journal-auth').hidden=true;element('team-journal-export').disabled=!events.length;return;}
     element('team-journal-status').textContent=lastError||(busy?'Sending entries to coach…':remote?(publicEntry?`${count} entr${count===1?'y':'ies'} waiting · saved entries send automatically; no player code needed.`:!settingsReady?'Checking the coach connection…':credentials?`${count} entr${count===1?'y':'ies'} waiting · connected as ${credentials.player}.`:'Enter your coach-issued code to send your saved entries.'):'Coach connection pending · entries are saved on this device.');
@@ -84,7 +85,7 @@ export function startTeamJournal({players,scope,getRecords,element,download,chan
     }).withFailureHandler(()=>{clearTimeout(timer);finishSettings(false);lastError='The coach connection did not load. Reload to retry; entries remain on this device.';render();}).getConnectionSettings();
   }
   function concentrationHistory(){
-    let history=events;try{const stored=JSON.parse(localStorage.getItem(key)||'null');if(stored?.version===1&&Array.isArray(stored.events))history=[...history,...stored.events];}catch{}
+    let history=events;try{const stored=JSON.parse(trainingStorage.getItem(key)||'null');if(stored?.version===1&&Array.isArray(stored.events))history=[...history,...stored.events];}catch{}
     return history.filter(e=>e?.kind==='workout'&&e.record?.source_template_id==='concentration-grid-100').map(e=>e.record);
   }
   return {record,readOverSpeedProgress,readTeamSchedule,readConcentrationSummary,concentrationHistory,pending:player=>events.filter(e=>!e.received_at&&e.player===player),rebase(player,revisions){events=events.map(e=>!e.received_at&&e.player===player?{...e,base_revision:revisions[e.kind+'|'+e.record.id]??null}:e);persist();},accept(accepted,revisions){const received=new Map(accepted.map(a=>[a.event_id,a.received_at])),keys=new Set(events.filter(e=>received.has(e.event_id)).map(e=>e.kind+'|'+e.record.id));events=events.map(e=>received.has(e.event_id)?{...e,received_at:received.get(e.event_id)}:!e.received_at&&keys.has(e.kind+'|'+e.record.id)?{...e,base_revision:revisions[e.kind+'|'+e.record.id]??null}:e);persist();render();}};

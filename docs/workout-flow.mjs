@@ -1,3 +1,4 @@
+import { trainingStorage } from './training-storage.mjs';
 import {THROWING_PLYO_BRANDS,throwingLightBall,throwingSetupFromNotes,throwingSetupNotes,throwingExerciseDisplay,throwingDisplayText,appendThrowingDisplay,stripThrowingEquipmentNote,throwingExerciseNotes} from './throwing-equipment.mjs?v=schedule-auto-refresh-20261025';
 import {WORKOUT_EQUIPMENT,homeWorkoutFor,homeResultText,previousHomeResult} from './home-workouts.mjs?v=schedule-auto-refresh-20261025';
 import {isAxeWorkout} from './axe-progress.mjs?v=rangers-organization-20261025';
@@ -22,14 +23,14 @@ export function startWorkoutFlow({players,scope,element:$,download,onChange,vari
   const equipmentForPlayer=new Map();
   let throwingSetup={brand:'driveline',longTossPlyo:false};const throwingSetupForPlayer=new Map();
   try{
-    const raw=sharedStore?null:localStorage.getItem(key);
+    const raw=sharedStore?null:trainingStorage.getItem(key);
     if(raw){const data=JSON.parse(raw);if(data.version!==1||!Array.isArray(data.records))throw Error();const ids=new Set();for(const r of data.records){validateWorkout(r,players);if(ids.has(r.id))throw Error();ids.add(r.id);}records=data.records;}
   }catch{readable=false;saved=false;$('workout-storage-status').textContent='Device storage could not be read. New workouts stay in this open page; export before closing. Existing saved data will not be overwritten.';}
   if(sharedStore){records=sharedStore.records();({readable,saved}=sharedStore.storageState());}
   function persist(next,{journal=true}={}){
     if(sharedStore){sharedStore.commit(next,{journal});return;}
     const before=records;
-    if(readable){try{localStorage.setItem(key,JSON.stringify({version:1,records:next}));saved=true;$('workout-storage-status').textContent='';}catch{saved=false;$('workout-storage-status').textContent='Device saving is unavailable. Changes stay in this open page; export before closing.';}}
+    if(readable){try{trainingStorage.setItem(key,JSON.stringify({version:1,records:next}));saved=true;$('workout-storage-status').textContent='';}catch{saved=false;$('workout-storage-status').textContent='Device saving is unavailable. Changes stay in this open page; export before closing.';}}
     records=next;if(journal)onChange?.(before,next);renderHistory();refreshReminders();for(const listener of listeners)listener();
   }
   function reminder(exercise){const text=make('p','previous-load-reminder');text.reminderExercise=exercise;setReminder(text);return text;}

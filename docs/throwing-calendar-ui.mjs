@@ -1,3 +1,4 @@
+import { trainingStorage } from './training-storage.mjs';
 import {THROWING_SCHEDULE,THROWING_ROUTINES,throwingDate,throwingChoices,throwingDayRecord} from './throwing-schedule.mjs?v=schedule-auto-refresh-20261025';
 import {isThrowingOffDay} from './workout-record-tools.mjs?v=schedule-auto-refresh-20261025';
 
@@ -5,7 +6,7 @@ export function startThrowingCalendar({players,scope,element:$,flow,subscribe,on
  const key='rangers-throwing-calendar-v1-'+scope,make=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n;};
  const player=()=>$('throwing-player').value;
  let starts={},readable=true,saving=true,active='',offContext=null,lastPlayer=player();
- try{const raw=localStorage.getItem(key);if(raw){const value=JSON.parse(raw);if(value.version!==1||!value.starts||typeof value.starts!=='object'||Array.isArray(value.starts))throw Error();for(const [name,date] of Object.entries(value.starts))if(!players.includes(name)||!throwingDate(date,1,1))throw Error();starts=value.starts;}}
+ try{const raw=trainingStorage.getItem(key);if(raw){const value=JSON.parse(raw);if(value.version!==1||!value.starts||typeof value.starts!=='object'||Array.isArray(value.starts))throw Error();for(const [name,date] of Object.entries(value.starts))if(!players.includes(name)||!throwingDate(date,1,1))throw Error();starts=value.starts;}}
  catch{readable=false;$('throwing-calendar-message').textContent='Saved calendar dates could not be read. Existing data is preserved; choose a Day 1 date for this page.';}
  const shortDate=date=>new Date(date+'T12:00:00Z').toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'UTC'});
  function render(){
@@ -68,7 +69,7 @@ export function startThrowingCalendar({players,scope,element:$,flow,subscribe,on
   if(prior&&prior!==date&&!window.confirm('Change this player’s calendar dates? Saved workout dates stay unchanged.')){$('throwing-calendar-start').value=prior;return;}
   starts[name]=date;onStartChange(name,date);active='';offContext=null;$('throwing-calendar-choice').hidden=true;
   if(!flow.hasDraft?.())$('throwing-form').hidden=true;
-  if(readable)try{localStorage.setItem(key,JSON.stringify({version:1,starts}));saving=true;}catch{saving=false;}
+  if(readable)try{trainingStorage.setItem(key,JSON.stringify({version:1,starts}));saving=true;}catch{saving=false;}
   $('throwing-calendar-message').textContent=readable&&saving?'Day 1 date saved for '+name+'.': 'Calendar date is kept in this page only; device saving is unavailable.';render();
  });
  $('throwing-form').addEventListener('submit',()=>{
@@ -77,5 +78,5 @@ export function startThrowingCalendar({players,scope,element:$,flow,subscribe,on
   active='';offContext=null;$('throwing-calendar-choice').hidden=true;
   $('throwing-calendar-message').textContent='Routine saved. Choose another calendar day, or reopen a saved day or history entry to correct it.';render();
  });
- $('throwing-form').hidden=true;subscribe(()=>render());render();return {applyStart(name,date){if(date)starts[name]=date;else delete starts[name];try{localStorage.setItem(key,JSON.stringify({version:1,starts}));}catch{}render();},render};
+ $('throwing-form').hidden=true;subscribe(()=>render());render();return {applyStart(name,date){if(date)starts[name]=date;else delete starts[name];try{trainingStorage.setItem(key,JSON.stringify({version:1,starts}));}catch{}render();},render};
 }
