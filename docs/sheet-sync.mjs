@@ -1,4 +1,4 @@
-import {authenticateWithPersonalPassword} from './player-password.mjs';
+import {authenticateWithPersonalPassword} from './player-password.mjs?v=personal-passwords-20261029';
 export const SHEET_KINDS=['blast','blast_pcr','baseball','workout','overspeed','overspeed_session','pulse','player_settings'];
 export function checkSheetSnapshot(snapshot,player,validate){
  if(!snapshot||snapshot.source!=='google_sheet'||snapshot.player!==player||!snapshot.records||!snapshot.revisions||typeof snapshot.as_of!=='string')throw Error('The Google Sheet response could not be verified.');

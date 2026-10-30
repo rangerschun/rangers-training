@@ -1,4 +1,4 @@
-import {passwordChangeFields} from './player-password.mjs';
+import {passwordChangeFields} from './player-password.mjs?v=personal-passwords-20261029';
 import {TAB_PLAYER_IDS} from './tab-players.mjs?v=player-jersey-check-20261025';
 
 // A browser-only jersey check. It does not authenticate Google requests or protect public assets.
@@ -21,7 +21,7 @@ export function startPlayerAccess({players,hashes,element:$,matches=jerseyCodeMa
    if(bar)for(const field of bar.children)if(!field.contains(select))field.inert=!unlocked;
   }
  }
- function dismiss(){attempt++;pending=null;changeFields.reset();input.value='';error.hidden=true;submit.disabled=false;if(dialog.open)dialog.close();render();}
+ function dismiss(){if(changeFields.isBusy())return;attempt++;pending=null;changeFields.reset();input.value='';error.hidden=true;submit.disabled=false;if(dialog.open)dialog.close();render();}
  function request(select,name){
   attempt++;pending={select,name};changeFields.reset();input.value='';error.hidden=true;
   const configured=Object.hasOwn(hashes??{},name);input.disabled=!configured;submit.disabled=!configured;
