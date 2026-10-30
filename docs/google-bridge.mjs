@@ -9,20 +9,20 @@ export function createGoogleBridge(config,{window=globalThis.window,document=glo
  if(url.origin!=='https://script.google.com'||!/^\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(url.pathname)||url.search||url.hash)throw Error('Invalid Google deployment URL.');
  if(!/^https:\/\/[a-zA-Z0-9-]+\.github\.io$/.test(config.origin)||window.location.origin!==config.origin)throw Error('This coach connection is not configured for this website.');
  const nonce=Array.from(crypto.getRandomValues(new Uint8Array(24)),n=>n.toString(16).padStart(2,'0')).join(''),channel='rangers-google-bridge-v1';
- const pending=new Map();let peer=null,peerOrigin='',closed=false,counter=0,popup=null;
+ const pending=new Map();let peer=null,peerOrigin='',closed=false,counter=0,popup=null,port=null;
  const status=document.createElement('p');status.setAttribute('role','status');
- function send(entry){if(peer)peer.postMessage({channel,nonce,type:'request',id:entry.id,method:entry.method,args:entry.args},peerOrigin);}
+ function send(entry){const request={channel,nonce,type:'request',id:entry.id,method:entry.method,args:entry.args};if(port)port.postMessage(request);else if(peer)peer.postMessage(request,peerOrigin);}
+ function respond(data){const entry=pending.get(data.id);if(!entry)return;clearTimeout(entry.timer);pending.delete(data.id);if(data.ok===true)entry.resolve(data.value);else entry.reject(Error(typeof data.error==='string'?data.error:'The coach sheet did not confirm this request.'));}
  function receive(event){
   const data=event.data;
   if(closed||!isGoogleBridgeOrigin(event.origin)||!data||data.channel!==channel||data.nonce!==nonce||!event.source)return;
   if(data.type==='ready'){
    if(peer&&peer!==event.source)return;peer=event.source;peerOrigin=event.origin;status.textContent='Google connected. Return here and press Continue. Keep the Google window open while using Rangers Training.';
+   if(!port&&window.MessageChannel){const pair=new window.MessageChannel();port=pair.port1;port.onmessage=event=>{const reply=event.data;if(reply?.channel===channel&&reply.nonce===nonce&&reply.type==='response')respond(reply);};port.start();peer.postMessage({channel,nonce,type:'connect'},peerOrigin,[pair.port2]);}
    for(const entry of pending.values())if(!entry.sent){entry.sent=true;send(entry);}return;
   }
   if(event.source!==peer||event.origin!==peerOrigin||data.type!=='response')return;
-  const entry=pending.get(data.id);if(!entry)return;
-  clearTimeout(entry.timer);pending.delete(data.id);
-  if(data.ok===true)entry.resolve(data.value);else entry.reject(Error(typeof data.error==='string'?data.error:'The coach sheet did not confirm this request.'));
+  respond(data);
  }
  window.addEventListener('message',receive);
  const frame=document.createElement('iframe');frame.setAttribute('aria-hidden','true');frame.tabIndex=-1;frame.style.cssText='position:fixed;left:0;top:0;width:1px;height:1px;border:0;opacity:0;pointer-events:none';frame.title='Private coach sheet connection';frame.referrerPolicy='no-referrer';url.searchParams.set('mode','github-bridge');url.searchParams.set('nonce',nonce);url.searchParams.set('origin',config.origin);frame.src=url.href;document.body.append(frame);
@@ -45,10 +45,10 @@ export function createGoogleBridge(config,{window=globalThis.window,document=glo
   if(popup&&!popup.closed){popup.focus();return;}
   const opened=window.open(url.href,'rangers-training-google','popup,width=520,height=420');
   if(!opened){status.textContent='Allow this site to open the Google connection window, then try again.';return;}
-  popup=opened;peer=null;peerOrigin='';for(const entry of pending.values())entry.sent=false;
+  popup=opened;port?.close();port=null;peer=null;peerOrigin='';for(const entry of pending.values())entry.sent=false;
   status.textContent='Opening Google. Return here when connected, and keep that window open.';
  }
- return {run:runner(),call,connect,status,dispose(){closed=true;window.removeEventListener('message',receive);frame.remove();for(const e of pending.values()){clearTimeout(e.timer);e.reject(Error('The coach connection closed.'));}pending.clear();}};
+ return {run:runner(),call,connect,status,dispose(){closed=true;port?.close();window.removeEventListener('message',receive);frame.remove();for(const e of pending.values()){clearTimeout(e.timer);e.reject(Error('The coach connection closed.'));}pending.clear();}};
 }
 export function installGoogleBridge(config){
  if(!config||globalThis.google?.script?.run)return null;
