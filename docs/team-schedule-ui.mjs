@@ -1,3 +1,4 @@
+import {startCalendarAutoRefresh} from './calendar-refresh.mjs?v=hourly-calendar-20261029';
 import { trainingStorage } from './training-storage.mjs';
 import {parseTeamCalendar,selectTeamEvents,formatTeamEventTime,scheduleDateKey,teamCalendarMonth,teamEventOnDate,publicTeamCalendarSnapshot} from './team-schedule.mjs?v=calendar-location-20261025';
 export function teamCalendarServiceUrl(endpoint){
@@ -16,8 +17,8 @@ export function readPublicTeamSchedule(endpoint,{document=globalThis.document,ho
   timer=setTimeout(()=>{clean();reject(Error('The calendar connection timed out.'));},timeoutMs);document.head.append(script);
  });
 }
-export function startTeamSchedule({config,element:$,download,readRemote,readPublic=readPublicTeamSchedule,fetcher=globalThis.fetch,now=()=>Date.now(),storage=trainingStorage}){
- const make=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n;},zone='America/Toronto';let calendar=null,payload=null,busy=false,generation=0,layout='grid',selectedDate=scheduleDateKey(now(),zone),monthKey=selectedDate.slice(0,7);let [year,month]=monthKey.split('-').map(Number);month--;
+export function startTeamSchedule({config,element:$,download,readRemote,readPublic=readPublicTeamSchedule,fetcher=globalThis.fetch,now=()=>Date.now(),storage=trainingStorage,canRefresh=()=>true,autoRefresh=true}){
+ const make=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n;},zone='America/Toronto';let autoRefreshController=null;let calendar=null,payload=null,busy=false,generation=0,layout='grid',selectedDate=scheduleDateKey(now(),zone),monthKey=selectedDate.slice(0,7);let [year,month]=monthKey.split('-').map(Number);month--;
  const hasFeed=config&&/^https:\/\/ical-cdn\.teamsnap\.com\/team_schedule\/[a-zA-Z0-9-]+\.ics$/.test(config.feed_url),valid=hasFeed||config?.remote===true;
  const postedSubscription=typeof config?.subscription_url==='string'&&/^https:\/\/ical-cdn\.teamsnap\.com\/team_schedule\/[a-zA-Z0-9-]+\.ics$/.test(config.subscription_url)?config.subscription_url:null;let subscriptionUrl=postedSubscription||(hasFeed?config.feed_url:null);
  function status(message){$('team-schedule-status').textContent=message;}
@@ -57,7 +58,7 @@ export function startTeamSchedule({config,element:$,download,readRemote,readPubl
   if(payload&&Date.parse(next.fetched_at)<Date.parse(payload.fetched_at)){if(next.schema_version>=2)locationSource=next;next=payload;cached=true;}
   if(config.public_url)next={...publicTeamCalendarSnapshot(next.ical_text,next.fetched_at,{locations_from:locationSource,locations_current:next.schema_version>=2&&next.locations_current!==false}),stale:next.stale===true};
   if(typeof next.subscription_url==='string'&&/^https:\/\/ical-cdn\.teamsnap\.com\/team_schedule\/[a-zA-Z0-9-]+\.ics$/.test(next.subscription_url)){subscriptionUrl=next.subscription_url;$('team-schedule-subscribe').href=subscriptionUrl.replace(/^https:/,'webcal:');$('team-schedule-subscribe').hidden=false;$('team-schedule-subscription-url').value=subscriptionUrl;$('team-schedule-subscription-details').hidden=false;}
-  const firstLoad=!calendar,parsed=parseTeamCalendar(next.ical_text);calendar=parsed;payload=next;if(firstLoad&&calendar.events.length){const eventDate=event=>event.start.all_day?event.start.date:scheduleDateKey(event.start.timestamp,zone);if(!calendar.events.some(event=>eventDate(event).startsWith(selectedDate.slice(0,7)))){const event=selectTeamEvents(calendar,{view:'upcoming',now:now(),zone})[0]??calendar.events.at(-1);selectedDate=eventDate(event);[year,month]=selectedDate.slice(0,7).split('-').map(Number);month--;}}if(config.cache_key){try{storage?.setItem(config.cache_key,JSON.stringify(next));}catch{}}render();const stamp=new Intl.DateTimeFormat('en-CA',{timeZone:zone,dateStyle:'medium',timeStyle:'short'}).format(new Date(next.fetched_at));$('team-schedule-updated').textContent='Last retrieved: '+stamp+' Eastern.';status(`${cached?'Saved schedule':'Schedule retrieved'} · ${stamp} Eastern. ${next.stale?'Refresh unavailable; showing the saved schedule.':'TeamSnap may take time to publish changes.'}`);
+  const firstLoad=!calendar,parsed=parseTeamCalendar(next.ical_text);calendar=parsed;payload=next;autoRefreshController?.noteRefreshed();if(firstLoad&&calendar.events.length){const eventDate=event=>event.start.all_day?event.start.date:scheduleDateKey(event.start.timestamp,zone);if(!calendar.events.some(event=>eventDate(event).startsWith(selectedDate.slice(0,7)))){const event=selectTeamEvents(calendar,{view:'upcoming',now:now(),zone})[0]??calendar.events.at(-1);selectedDate=eventDate(event);[year,month]=selectedDate.slice(0,7).split('-').map(Number);month--;}}if(config.cache_key){try{storage?.setItem(config.cache_key,JSON.stringify(next));}catch{}}render();const stamp=new Intl.DateTimeFormat('en-CA',{timeZone:zone,dateStyle:'medium',timeStyle:'short'}).format(new Date(next.fetched_at));$('team-schedule-updated').textContent='Last retrieved: '+stamp+' Eastern.';status(`${cached?'Saved schedule':'Schedule retrieved'} · ${stamp} Eastern. ${next.stale?'Refresh unavailable; showing the saved schedule.':'TeamSnap may take time to publish changes.'}`);
  }
  let savedLoad=null;
  async function loadSaved(){
@@ -65,7 +66,7 @@ export function startTeamSchedule({config,element:$,download,readRemote,readPubl
   savedLoad??=(async()=>{const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),5000);try{const response=await fetcher(config.snapshot_url,{cache:'no-store',signal:controller.signal});if(!response.ok)throw Error();accept(await response.json(),{cached:true});}catch{/* A live refresh can still recover an unavailable published copy. */}finally{clearTimeout(timer);}})();try{await savedLoad;}finally{savedLoad=null;}
  }
  async function refresh(){
-  if(busy||!valid)return;const requestGeneration=generation;busy=true;$('team-schedule-refresh').disabled=true;
+  if(busy||!valid||!canRefresh())return;const requestGeneration=generation;busy=true;$('team-schedule-refresh').disabled=true;
   await loadSaved();status(payload?'Checking for changes… The saved schedule remains available.':'Refreshing TeamSnap schedule…');
   try{let next;if(config.public_url){next=await readPublic(config.public_url);if(!subscriptionUrl){const feed=teamCalendarServiceUrl(config.public_url).href;$('team-schedule-subscribe').href=feed.replace(/^https:/,'webcal:');$('team-schedule-subscribe').hidden=false;}}
    else if(config.remote||globalThis.google?.script?.run){if(!readRemote)throw Error('The schedule connection is unavailable.');next=await readRemote();}
@@ -81,5 +82,6 @@ export function startTeamSchedule({config,element:$,download,readRemote,readPubl
  if(subscriptionUrl){$('team-schedule-subscribe').href=subscriptionUrl.replace(/^https:/,'webcal:');}
  if(valid){if(hasFeed){$('team-schedule-subscribe').href=config.feed_url.replace(/^https:/,'webcal:');}for(const next of [config.initial,(()=>{try{return config.cache_key?JSON.parse(storage?.getItem(config.cache_key)??'null'):null;}catch{return null;}})()]){try{if(next)accept(next,{cached:true});}catch{status('The saved schedule could not be read. Refresh to try again.');}}}
  else{$('team-schedule-refresh').disabled=true;status('Team calendar connection pending.');}render();
+ if(autoRefresh&&valid)autoRefreshController=startCalendarAutoRefresh({refresh,canRefresh,now});
  return {activate:()=>{render();return refresh();},refresh,clear(){generation++;calendar=null;payload=null;subscriptionUrl=null;busy=false;$('team-schedule-refresh').disabled=false;$('team-schedule-subscribe').hidden=true;$('team-schedule-subscribe').removeAttribute('href');$('team-schedule-subscription-url').value='';$('team-schedule-subscription-details').hidden=true;$('team-schedule-updated').textContent='';status('Sign in to view the team calendar.');render();}};
 }
