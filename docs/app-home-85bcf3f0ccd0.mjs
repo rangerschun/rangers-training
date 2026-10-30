@@ -244,7 +244,7 @@ export function startGameChanger({element:$,onPlayerAuthorized=()=>{},players=[]
   }else note.textContent='No team benchmark';
   card.append(name,main,note);return card;
  }
- function rosterRank(season,player,group,key,type,direction){const current=player[group]?.[key];if(current===null||current===undefined||current===''||!Number.isFinite(Number(current))||Number(current)===0)return null;const values=[];for(const name of ROSTER){const rosterPlayer=season.players.find(candidate=>candidate.name===name),value=rosterPlayer?.[group]?.[key];if(value===null||value===undefined||value===''||!Number.isFinite(Number(value))){if(type==='int')values.push(0);continue;}values.push(Number(value));}const ahead=values.filter(value=>direction<0?value<Number(current):value>Number(current)).length;const rank=ahead+1;return rank<=6?rank:null;} function draw(){  const baseSeason=seasons.find(s=>s.id===seasonSelect.value),basePlayer=baseSeason?.players.find(p=>p.id===playerSelect.value);  if(basePlayer&&authorizedPlayerKey!==playerKey(baseSeason,basePlayer)){hidePlayerStats();return;}
+ function draw(){  const baseSeason=seasons.find(s=>s.id===seasonSelect.value),basePlayer=baseSeason?.players.find(p=>p.id===playerSelect.value);  if(basePlayer&&authorizedPlayerKey!==playerKey(baseSeason,basePlayer)){hidePlayerStats();return;}
   const season=selectedRangeSeason(baseSeason),player=season?.players.find(p=>p.id===basePlayer?.id);
   details.hidden=!player;  if(!basePlayer){message.hidden=false;message.textContent=baseSeason?'Choose a player to see stats and team comparisons.':'Loading GameChanger stats…';return;}
   if(!season||!player){summary.replaceChildren();focus.replaceChildren();comparison.replaceChildren();message.hidden=false;message.textContent=(rangeLabels[rangeSelect.value]??'Selected range')+' stats have not been imported for this season yet.';return;}
@@ -274,11 +274,11 @@ export function startGameChanger({element:$,onPlayerAuthorized=()=>{},players=[]
   const heading=document.createElement('div');heading.className='gc-comparison-heading';
   const title=document.createElement('h2');title.textContent=config.label+' comparison';  const seasonLabel=document.createElement('span');seasonLabel.textContent=season.label+' · '+(rangeLabels[rangeSelect.value]??rangeLabels.full)+' · '+player.name+' · #'+player.number;
   heading.append(title,seasonLabel);comparison.append(heading);
-  const note=document.createElement('p');note.className='gc-method-note';  note.textContent=group==='batting'?'Rate stats use team AB, PA or other relevant opportunities. Hitting counting stats show player totals only. All source players contribute to team rates. Team rank retains the roster comparison.':'Rate stats use team IP or other relevant opportunities. Pitching counting-stat benchmarks show the team rate over your own innings pitched (IP). All source players contribute to team rates. Team rank retains the roster comparison.';  comparison.append(note);
+  const note=document.createElement('p');note.className='gc-method-note';  note.textContent=group==='batting'?'Rate stats use team AB, PA or other relevant opportunities. Hitting counting stats show player totals only. All source players contribute to team rates.':'Rate stats use team IP or other relevant opportunities. Pitching counting-stat benchmarks show the team rate over your own innings pitched (IP). All source players contribute to team rates.';  comparison.append(note);
   const wrap=document.createElement('div');wrap.className='gc-table-wrap';
   const table=document.createElement('table');table.className='gc-stats-table';
   const head=document.createElement('thead'),headRow=document.createElement('tr');
-  for(const label of ['Statistic','Player','Team benchmark','Difference','Team rank · top 6']){const th=document.createElement('th');th.scope='col';th.textContent=label;headRow.append(th);}
+  for(const label of ['Statistic','Player','Team benchmark']){const th=document.createElement('th');th.scope='col';th.textContent=label;headRow.append(th);}
   head.append(headRow);table.append(head);
   const body=document.createElement('tbody');let visible=0;
   for(const [key,label,type,direction] of (hasStats?config.stats:[])){
@@ -289,11 +289,9 @@ export function startGameChanger({element:$,onPlayerAuthorized=()=>{},players=[]
    const personal=document.createElement('td');personal.textContent=fmt(value,type);
    const team=document.createElement('td');team.textContent=bench?fmt(bench.value,type):'';
    const kind=document.createElement('small');kind.className='gc-benchmark-kind';kind.textContent=bench?.kind==='team rate'?'Team rate':bench?.kind?.startsWith('at your ')?'Team rate '+bench.kind:'Team benchmark';if(bench)team.append(document.createElement('br'),kind);
-   const delta=document.createElement('td');delta.textContent=bench?deltaText(value,bench.value,type):'';
-   if(direction!==0&&Number.isFinite(Number(value))&&Number.isFinite(Number(bench?.value))){const d=(Number(value)-Number(bench.value))*direction;delta.className=d>=0?'gc-positive':'gc-negative';}else delta.className='gc-neutral';
-   const rank=document.createElement('td'),rankNumber=rosterRank(season,player,group,key,type,direction);rank.textContent=['avg','ops','fpct','pct','pct100','whip','ratio','era'].includes(type)&&rankNumber?'#'+rankNumber:'';row.append(name,personal,team,delta,rank);body.append(row);
+   row.append(name,personal,team);body.append(row);
   }
-  if(!visible){const row=document.createElement('tr'),cell=document.createElement('td');cell.colSpan=5;cell.textContent='No '+config.label.toLowerCase()+' stats were recorded for this player in this export.';row.append(cell);body.append(row);}
+  if(!visible){const row=document.createElement('tr'),cell=document.createElement('td');cell.colSpan=3;cell.textContent='No '+config.label.toLowerCase()+' stats were recorded for this player in this export.';row.append(cell);body.append(row);}
   table.append(body);wrap.append(table);comparison.append(wrap);
  }
  function syncPlayer(name){pendingSyncName=String(name??'').trim();if(!pendingSyncName||!seasons.length)return;const season=seasons.find(s=>s.id===seasonSelect.value),player=season?.players.find(p=>p.name===pendingSyncName||p.name.split(/\s+/)[0]===pendingSyncName);if(!player)return;playerSelect.value=player.id;playerSelect.dispatchEvent(new Event('change',{bubbles:true}));} function fillPlayers(keep=true){
