@@ -175,7 +175,7 @@ const ROSTER=new Set(['Rory Chi','Ambrose Chun','Michael Kim','Max Hall','Carson
  ]},
  pitching:{label:'Pitching',stats:[
   
-  ['WHIP','WHIP','whip',-1],
+  ['WHIP','WHIP','whip',-1],['SO/BB','SO/BB','ratio',1],
   ['FPS%','First-pitch strike %','pct100',1],['S%','Strike %','pct100',1],['SO','SO','int',1],['BB','BB','int',-1],
  ]},
  fielding:{label:'Fielding',stats:[
