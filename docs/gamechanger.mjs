@@ -1,5 +1,5 @@
 import {passwordChangeFields} from './player-password.mjs?v=personal-passwords-20261029';
-import {applyGameChangerExposure,gameChangerBenchmark,applySharedGameChangerSnapshots} from './gamechanger-data-adapter.mjs?v=batting-player-totals-20261029';
+import {applyGameChangerExposure,gameChangerBenchmark,applySharedGameChangerSnapshots} from './gamechanger-data-adapter.mjs?v=pitching-so-bb-20261029';
 const ROSTER=new Set(['Rory Chi','Ambrose Chun','Michael Kim','Max Hall','Carson Pavao','Jayden Salas-Smith','Andre Stajan','Aidan Scane','Joseph Mestre','Nathan Bussey','Raiden Huether','Josh Mosakos','Walker Thompson','Carter Nelson']);const GROUPS={
  batting:{label:'Batting',stats:[
   ['OPS','OPS','ops',1],['AVG','AVG','avg',1],['OBP','OBP','avg',1],['SLG','SLG','avg',1],
@@ -9,7 +9,7 @@ const ROSTER=new Set(['Rory Chi','Ambrose Chun','Michael Kim','Max Hall','Carson
  ]},
  pitching:{label:'Pitching',stats:[
   
-  ['WHIP','WHIP','whip',-1],
+  ['WHIP','WHIP','whip',-1],['SO/BB','SO/BB','ratio',1],
   ['FPS%','First-pitch strike %','pct100',1],['S%','Strike %','pct100',1],['SO','SO','int',1],['BB','BB','int',-1],
  ]},
  fielding:{label:'Fielding',stats:[

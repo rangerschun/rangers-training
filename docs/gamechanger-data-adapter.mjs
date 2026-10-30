@@ -6,6 +6,8 @@ export function applyGameChangerExposure(season){
   const exposure=group==='pitching'?players.reduce((a,p)=>a+(gcOuts(p.pitching?.IP)??0)/3,0):players.reduce((a,p)=>a+(Number(p.batting?.GP)||0),0);
   for(const key of keys){const sum=players.reduce((a,p)=>a+(Number(p[group]?.[key])||0),0);season.benchmarks[group][key]={value:gcRate(sum,exposure),kind:'opportunity rate',unit_rate:gcRate(sum,exposure),opportunity:group==='pitching'?'IP':'GP'};}
  }
+ for(const player of players){player.pitching??={};player.pitching['SO/BB']=gcRate(gcNumber(player.pitching.SO),gcNumber(player.pitching.BB));}
+ const pitchingSO=players.reduce((n,p)=>n+(gcNumber(p.pitching.SO)??0),0),pitchingBB=players.reduce((n,p)=>n+(gcNumber(p.pitching.BB)??0),0);const incompletePitching=players.some(p=>{const so=gcNumber(p.pitching.SO),bb=gcNumber(p.pitching.BB);return (so===null||bb===null)&&(so!==null||bb!==null||Number(p.pitching.GP)>0||(gcOuts(p.pitching.IP)??0)>0);});season.benchmarks.pitching['SO/BB']={value:incompletePitching?null:gcRate(pitchingSO,pitchingBB),kind:'team rate'};
  const pa=players.reduce((n,p)=>n+(Number(p.batting?.PA)||0),0),so=players.reduce((n,p)=>n+(Number(p.batting?.SO)||0),0);season.benchmarks.batting['K%']={value:gcRate(so*100,pa),kind:'team rate'};
  if(season.ranges)for(const key of Object.keys(season.ranges))applyGameChangerExposure(season.ranges[key]);return season;
 }
