@@ -9,7 +9,7 @@ export function applyGameChangerExposure(season){
  const pa=players.reduce((n,p)=>n+(Number(p.batting?.PA)||0),0),so=players.reduce((n,p)=>n+(Number(p.batting?.SO)||0),0);season.benchmarks.batting['K%']={value:gcRate(so*100,pa),kind:'team rate'};
  if(season.ranges)for(const key of Object.keys(season.ranges))applyGameChangerExposure(season.ranges[key]);return season;
 }
-export function gameChangerBenchmark(season,player,group,key){const bench=season.benchmarks[group]?.[key];if(bench?.kind!=='opportunity rate')return bench;const amount=bench.opportunity==='IP'?(gcOuts(player.pitching?.IP)??0)/3:Number(player.batting?.GP)||0;return {...bench,value:amount>0&&bench.unit_rate!==null?bench.unit_rate*amount:null,kind:'at your '+bench.opportunity,exposure:amount};}
+export function gameChangerBenchmark(season,player,group,key){if(group==='batting'&&['H','1B','2B','3B','XBH','HR','RBI','SB'].includes(key))return null;const bench=season.benchmarks[group]?.[key];if(bench?.kind!=='opportunity rate')return bench;const amount=bench.opportunity==='IP'?(gcOuts(player.pitching?.IP)??0)/3:Number(player.batting?.GP)||0;return {...bench,value:amount>0&&bench.unit_rate!==null?bench.unit_rate*amount:null,kind:'at your '+bench.opportunity,exposure:amount};}
 export function gameChangerSeasonFromSnapshot(snapshot,base,hashes={}){
  const number=gcNumber,groupNames=['batting','pitching','fielding'],ranges=[[3,54],[54,148],[148,174]],label=snapshot.slot==='current'?'16U':'15U';
  const old=base.find(s=>s.id===label),players=snapshot.rows.map(row=>{const name=row[2]+' '+row[1],prior=old?.players.find(p=>p.name===name)??base.flatMap(s=>s.players).find(p=>p.name===name),p={id:prior?.id??(row[0]+'-'+name).toLowerCase().replace(/[^a-z0-9]+/g,'-'),number:row[0],name};

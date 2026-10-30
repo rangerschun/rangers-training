@@ -143,7 +143,7 @@ export function applyGameChangerExposure(season){
  const pa=players.reduce((n,p)=>n+(Number(p.batting?.PA)||0),0),so=players.reduce((n,p)=>n+(Number(p.batting?.SO)||0),0);season.benchmarks.batting['K%']={value:gcRate(so*100,pa),kind:'team rate'};
  if(season.ranges)for(const key of Object.keys(season.ranges))applyGameChangerExposure(season.ranges[key]);return season;
 }
-export function gameChangerBenchmark(season,player,group,key){const bench=season.benchmarks[group]?.[key];if(bench?.kind!=='opportunity rate')return bench;const amount=bench.opportunity==='IP'?(gcOuts(player.pitching?.IP)??0)/3:Number(player.batting?.GP)||0;return {...bench,value:amount>0&&bench.unit_rate!==null?bench.unit_rate*amount:null,kind:'at your '+bench.opportunity,exposure:amount};}
+export function gameChangerBenchmark(season,player,group,key){if(group==='batting'&&['H','1B','2B','3B','XBH','HR','RBI','SB'].includes(key))return null;const bench=season.benchmarks[group]?.[key];if(bench?.kind!=='opportunity rate')return bench;const amount=bench.opportunity==='IP'?(gcOuts(player.pitching?.IP)??0)/3:Number(player.batting?.GP)||0;return {...bench,value:amount>0&&bench.unit_rate!==null?bench.unit_rate*amount:null,kind:'at your '+bench.opportunity,exposure:amount};}
 export function gameChangerSeasonFromSnapshot(snapshot,base,hashes={}){
  const number=gcNumber,groupNames=['batting','pitching','fielding'],ranges=[[3,54],[54,148],[148,174]],label=snapshot.slot==='current'?'16U':'15U';
  const old=base.find(s=>s.id===label),players=snapshot.rows.map(row=>{const name=row[2]+' '+row[1],prior=old?.players.find(p=>p.name===name)??base.flatMap(s=>s.players).find(p=>p.name===name),p={id:prior?.id??(row[0]+'-'+name).toLowerCase().replace(/[^a-z0-9]+/g,'-'),number:row[0],name};
@@ -269,7 +269,7 @@ export function startGameChanger({element:$,onPlayerAuthorized=()=>{},players=[]
   const heading=document.createElement('div');heading.className='gc-comparison-heading';
   const title=document.createElement('h2');title.textContent=config.label+' comparison';  const seasonLabel=document.createElement('span');seasonLabel.textContent=season.label+' · '+(rangeLabels[rangeSelect.value]??rangeLabels.full)+' · '+player.name+' · #'+player.number;
   heading.append(title,seasonLabel);comparison.append(heading);
-  const note=document.createElement('p');note.className='gc-method-note';  note.textContent='Rate stats use team AB, PA, IP or other relevant opportunities. Counting-stat benchmarks show the team rate over your own games played (GP) or innings pitched (IP). All source players contribute to team rates. Team rank retains the roster comparison.';  comparison.append(note);
+  const note=document.createElement('p');note.className='gc-method-note';  note.textContent=group==='batting'?'Rate stats use team AB, PA or other relevant opportunities. Hitting counting stats show player totals only. All source players contribute to team rates. Team rank retains the roster comparison.':'Rate stats use team IP or other relevant opportunities. Pitching counting-stat benchmarks show the team rate over your own innings pitched (IP). All source players contribute to team rates. Team rank retains the roster comparison.';  comparison.append(note);
   const wrap=document.createElement('div');wrap.className='gc-table-wrap';
   const table=document.createElement('table');table.className='gc-stats-table';
   const head=document.createElement('thead'),headRow=document.createElement('tr');
@@ -282,9 +282,9 @@ export function startGameChanger({element:$,onPlayerAuthorized=()=>{},players=[]
    visible++;const row=document.createElement('tr');if(key===statSelect.value)row.className='gc-selected-stat';
    const name=document.createElement('th');name.scope='row';name.textContent=label;
    const personal=document.createElement('td');personal.textContent=fmt(value,type);
-   const team=document.createElement('td');team.textContent=fmt(bench?.value,type);
-   const kind=document.createElement('small');kind.className='gc-benchmark-kind';kind.textContent=bench?.kind==='team rate'?'Team rate':bench?.kind?.startsWith('at your ')?'Team rate '+bench.kind:'Team benchmark';team.append(document.createElement('br'),kind);
-   const delta=document.createElement('td');delta.textContent=deltaText(value,bench?.value,type);
+   const team=document.createElement('td');team.textContent=bench?fmt(bench.value,type):'';
+   const kind=document.createElement('small');kind.className='gc-benchmark-kind';kind.textContent=bench?.kind==='team rate'?'Team rate':bench?.kind?.startsWith('at your ')?'Team rate '+bench.kind:'Team benchmark';if(bench)team.append(document.createElement('br'),kind);
+   const delta=document.createElement('td');delta.textContent=bench?deltaText(value,bench.value,type):'';
    if(direction!==0&&Number.isFinite(Number(value))&&Number.isFinite(Number(bench?.value))){const d=(Number(value)-Number(bench.value))*direction;delta.className=d>=0?'gc-positive':'gc-negative';}else delta.className='gc-neutral';
    const rank=document.createElement('td'),rankNumber=rosterRank(season,player,group,key,type,direction);rank.textContent=['avg','ops','fpct','pct','pct100','whip','ratio','era'].includes(type)&&rankNumber?'#'+rankNumber:'';row.append(name,personal,team,delta,rank);body.append(row);
   }
