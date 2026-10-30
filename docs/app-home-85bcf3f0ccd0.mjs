@@ -3455,7 +3455,8 @@ let rosterHash=2166136261;
 for(const char of JSON.stringify(STORAGE_ROSTER_LABELS)) rosterHash=Math.imul(rosterHash^char.charCodeAt(0),16777619)>>>0;
 // Bring earlier device-only calendar dates and baselines into the retry journal once.
 try{if(!Array.isArray(playerSettings))playerSettings=[];const baselines=JSON.parse(trainingStorage.getItem('rangers-velocity-target-previous-baselines-v1')||'{}'),starts=JSON.parse(trainingStorage.getItem('rangers-throwing-calendar-v1-'+rosterHash.toString(16))||'null')?.starts??{};for(const player of PLAYER_LABELS)if(!playerSettings.some(r=>r.player===player)&&(starts[player]||Number(baselines[player])>0)){playerSettings.push({id:'settings-'+player,player,velocity_baseline_mph:Number(baselines[player])>0&&Number(baselines[player])<=150?Number(baselines[player]):null,baseline_source_key:null,throwing_start_date:starts[player]??null,updated_at:new Date().toISOString()});}}catch{}
-startDeviceMigration({scope:rosterHash.toString(16),element:$});
+// New training site starts fresh; do not offer or initialize old-site migration.
+$('site-address-notice')?.remove();
 const demoResetState=prepareDemoReset(trainingStorage,rosterHash.toString(16),PLAYER_LABELS);
 function populatePlayerDropdown(id) {
   const select = $(id);
