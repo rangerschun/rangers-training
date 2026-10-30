@@ -9,13 +9,14 @@ export function createGoogleBridge(config,{window=globalThis.window,document=glo
  if(url.origin!=='https://script.google.com'||!/^\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(url.pathname)||url.search||url.hash)throw Error('Invalid Google deployment URL.');
  if(!/^https:\/\/[a-zA-Z0-9-]+\.github\.io$/.test(config.origin)||window.location.origin!==config.origin)throw Error('This coach connection is not configured for this website.');
  const nonce=Array.from(crypto.getRandomValues(new Uint8Array(24)),n=>n.toString(16).padStart(2,'0')).join(''),channel='rangers-google-bridge-v1';
- const pending=new Map();let peer=null,peerOrigin='',closed=false,counter=0;
+ const pending=new Map();let peer=null,peerOrigin='',closed=false,counter=0,popup=null;
+ const status=document.createElement('p');status.setAttribute('role','status');
  function send(entry){if(peer)peer.postMessage({channel,nonce,type:'request',id:entry.id,method:entry.method,args:entry.args},peerOrigin);}
  function receive(event){
   const data=event.data;
   if(closed||!isGoogleBridgeOrigin(event.origin)||!data||data.channel!==channel||data.nonce!==nonce||!event.source)return;
   if(data.type==='ready'){
-   if(peer&&peer!==event.source)return;peer=event.source;peerOrigin=event.origin;
+   if(peer&&peer!==event.source)return;peer=event.source;peerOrigin=event.origin;status.textContent='Google connected. Return here and press Continue. Keep the Google window open while using Rangers Training.';
    for(const entry of pending.values())if(!entry.sent){entry.sent=true;send(entry);}return;
   }
   if(event.source!==peer||event.origin!==peerOrigin||data.type!=='response')return;
@@ -40,10 +41,20 @@ export function createGoogleBridge(config,{window=globalThis.window,document=glo
   for(const method of GOOGLE_BRIDGE_METHODS)api[method]=(...args)=>{void call(method,args).then(value=>success?.(value),error=>failure?.(error));};
   return api;
  }
- return {run:runner(),call,dispose(){closed=true;window.removeEventListener('message',receive);frame.remove();for(const e of pending.values()){clearTimeout(e.timer);e.reject(Error('The coach connection closed.'));}pending.clear();}};
+ function connect(){
+  if(popup&&!popup.closed){popup.focus();return;}
+  const opened=window.open(url.href,'rangers-training-google','popup,width=520,height=420');
+  if(!opened){status.textContent='Allow this site to open the Google connection window, then try again.';return;}
+  popup=opened;peer=null;peerOrigin='';for(const entry of pending.values())entry.sent=false;
+  status.textContent='Opening Google. Return here when connected, and keep that window open.';
+ }
+ return {run:runner(),call,connect,status,dispose(){closed=true;window.removeEventListener('message',receive);frame.remove();for(const e of pending.values()){clearTimeout(e.timer);e.reject(Error('The coach connection closed.'));}pending.clear();}};
 }
 export function installGoogleBridge(config){
  if(!config||globalThis.google?.script?.run)return null;
  if(globalThis.location?.origin!==config.origin)return null;
- const bridge=createGoogleBridge(config);globalThis.google={script:{run:bridge.run}};return bridge;
+ const bridge=createGoogleBridge(config);globalThis.google={script:{run:bridge.run}};
+ const form=document.getElementById('player-access-form');
+ if(form){const button=document.createElement('button');button.type='button';button.textContent='Connect Google in a separate window';button.addEventListener('click',bridge.connect);form.append(button,bridge.status);}
+ return bridge;
 }
