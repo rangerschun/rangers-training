@@ -4,7 +4,7 @@ export const GOOGLE_BRIDGE_METHODS=Object.freeze(['getConnectionSettings','verif
 export function isGoogleBridgeOrigin(origin){
  try{const url=new URL(origin);return url.origin===origin&&url.protocol==='https:'&&(url.hostname==='script.google.com'||url.hostname==='script.googleusercontent.com'||url.hostname.endsWith('-script.googleusercontent.com'));}catch{return false;}
 }
-export function createGoogleBridge(config,{window=globalThis.window,document=globalThis.document,crypto=globalThis.crypto,timeoutMs=20000}={}){
+export function createGoogleBridge(config,{window=globalThis.window,document=globalThis.document,crypto=globalThis.crypto,timeoutMs=60000}={}){
  const url=new URL(config.url);
  if(url.origin!=='https://script.google.com'||!/^\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(url.pathname)||url.search||url.hash)throw Error('Invalid Google deployment URL.');
  if(!/^https:\/\/[a-zA-Z0-9-]+\.github\.io$/.test(config.origin)||window.location.origin!==config.origin)throw Error('This coach connection is not configured for this website.');
@@ -24,7 +24,7 @@ export function createGoogleBridge(config,{window=globalThis.window,document=glo
   if(data.ok===true)entry.resolve(data.value);else entry.reject(Error(typeof data.error==='string'?data.error:'The coach sheet did not confirm this request.'));
  }
  window.addEventListener('message',receive);
- const frame=document.createElement('iframe');frame.hidden=true;frame.title='Private coach sheet connection';frame.referrerPolicy='no-referrer';url.searchParams.set('mode','github-bridge');url.searchParams.set('nonce',nonce);url.searchParams.set('origin',config.origin);frame.src=url.href;document.body.append(frame);
+ const frame=document.createElement('iframe');frame.setAttribute('aria-hidden','true');frame.tabIndex=-1;frame.style.cssText='position:fixed;left:0;top:0;width:1px;height:1px;border:0;opacity:0;pointer-events:none';frame.title='Private coach sheet connection';frame.referrerPolicy='no-referrer';url.searchParams.set('mode','github-bridge');url.searchParams.set('nonce',nonce);url.searchParams.set('origin',config.origin);frame.src=url.href;document.body.append(frame);
  function call(method,args=[]){
   if(closed)return Promise.reject(Error('The coach connection is closed.'));
   if(!GOOGLE_BRIDGE_METHODS.includes(method)||!Array.isArray(args)||args.length>2)return Promise.reject(Error('Unsupported coach request.'));
