@@ -1,4 +1,4 @@
-import {applyGameChangerExposure,gameChangerBenchmark,applySharedGameChangerSnapshots} from './gamechanger-data-adapter.mjs?v=schedule-auto-refresh-20261025';
+import {applyGameChangerExposure,gameChangerBenchmark,applySharedGameChangerSnapshots} from './gamechanger-data-adapter.mjs?v=batting-player-totals-20261029';
 const ROSTER=new Set(['Rory Chi','Ambrose Chun','Michael Kim','Max Hall','Carson Pavao','Jayden Salas-Smith','Andre Stajan','Aidan Scane','Joseph Mestre','Nathan Bussey','Raiden Huether','Josh Mosakos','Walker Thompson','Carter Nelson']);const GROUPS={
  batting:{label:'Batting',stats:[
   ['OPS','OPS','ops',1],['AVG','AVG','avg',1],['OBP','OBP','avg',1],['SLG','SLG','avg',1],
