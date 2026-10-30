@@ -1,4 +1,4 @@
-import {startTeamSchedule} from './team-schedule-ui.mjs?v=hourly-calendar-20261029';
+import {startTeamSchedule} from './team-schedule-ui.mjs?v=calendar-list-columns-20261029';
 import {startCoachPasswordReset} from './coach-password-reset.mjs?v=coach-password-reset-20261029';
 import {startCoachPlayerSummary} from './coach-player-summary.mjs';
 import { TRAINING_BACKEND_CONFIG } from './training-config.mjs';

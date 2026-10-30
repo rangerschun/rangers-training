@@ -31,7 +31,7 @@ export function startTeamSchedule({config,element:$,download,readRemote,readPubl
   selectedDate=date;[year,month]=date.slice(0,7).split('-').map(Number);month--;render();if(focus){const heading=$('team-schedule-selected-date');heading.focus({preventScroll:true});const card=[...$('team-schedule-day-events').children].find(n=>n.dataset.eventId===eventId);(card??$('team-schedule-day-details')).scrollIntoView({behavior:'smooth',block:'nearest'});}
  }
  function render(){
-  const list=$('team-schedule-events');list.replaceChildren();$('team-schedule-download').disabled=!payload;
+  const list=$('team-schedule-events');list.classList.toggle('schedule-list-grid',layout==='list');list.replaceChildren();$('team-schedule-download').disabled=!payload;
   $('team-schedule-month-controls').hidden=layout!=='grid';$('team-schedule-day-details').hidden=layout!=='grid'||!calendar;$('team-schedule-grid-mode').setAttribute('aria-pressed',String(layout==='grid'));$('team-schedule-list-mode').setAttribute('aria-pressed',String(layout==='list'));
   if(!calendar){$('team-schedule-count').textContent='';list.append(make('p','library-empty',valid?'The schedule has not loaded yet. Select Refresh schedule.':'The coach’s team calendar is not connected in this copy.'));return;}
   const events=selectTeamEvents(calendar,{view:$('team-schedule-view').value,query:$('team-schedule-search').value,now:now(),zone});
@@ -39,7 +39,7 @@ export function startTeamSchedule({config,element:$,download,readRemote,readPubl
   if(layout==='list'){
    $('team-schedule-count').textContent=`${events.length} event${events.length===1?'':'s'} · Eastern time`;
    if(!events.length){list.append(make('p','library-empty',$('team-schedule-search').value?'No events match your search.':'No upcoming events in the current feed. Choose All events to view the full schedule.'));return;}
-   let group='';for(const event of events){const key=event.start.all_day?event.start.date:scheduleDateKey(event.start.timestamp,zone);if(key!==group){group=key;list.append(make('h2','schedule-date-heading',dateLabel(key)));}list.append(eventCard(event));}return;
+   let group='',dayGroup=null;for(const event of events){const key=event.start.all_day?event.start.date:scheduleDateKey(event.start.timestamp,zone);if(key!==group){group=key;dayGroup=make('section','schedule-list-day');dayGroup.append(make('h2','schedule-date-heading',dateLabel(key)));list.append(dayGroup);}dayGroup.append(eventCard(event));}return;
   }
   const cells=teamCalendarMonth(year,month),monthLabel=new Intl.DateTimeFormat('en-CA',{month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(Date.UTC(year,month,1,12)));$('team-schedule-month').textContent=monthLabel;
   const count=new Set(cells.filter(cell=>cell.in_month).flatMap(cell=>events.filter(event=>teamEventOnDate(event,cell.date,zone)).map(event=>event.id))).size;$('team-schedule-count').textContent=`${count} event${count===1?'':'s'} this month · Eastern time`;
