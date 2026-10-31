@@ -4,7 +4,7 @@ const TEAM_AVERAGE_EXCLUSIONS=Object.freeze(['Marcus','Dominic','Demo']);
 function isTeamAveragePlayer(value){
  const name=typeof value==='string'?value:value?.player??value?.name??'';
  const first=String(name).trim().split(/\s+/)[0].toLowerCase();
- return Boolean(first)&&!TEAM_AVERAGE_EXCLUSIONS.some(name=>name.toLowerCase()===first);
+  return !TEAM_AVERAGE_EXCLUSIONS.some(name=>name.toLowerCase()===first);
 }
 
 function rebuildTeamBenchmarks(season,players){
