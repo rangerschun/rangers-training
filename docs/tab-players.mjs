@@ -1,4 +1,4 @@
-export const TAB_PLAYER_IDS={workouts:'workout-player',throwing:'throwing-player',targets:'player',tracker:'baseball-player',pulse:'pulse-player',blast:'blast-player',overspeed:'overspeed-player',axe:'axe-player',concentration:'concentration-player',calendar:'calendar-player'};
+export const TAB_PLAYER_IDS={workouts:'workout-player',throwing:'throwing-player',targets:'player',tracker:'baseball-player',pulse:'pulse-player',blast:'blast-player',overspeed:'overspeed-player',provelocity:'pv-player',axe:'axe-player',concentration:'concentration-player',calendar:'calendar-player'};
 // Each existing form handles its own unsaved-change guard before this listener runs.
 // Only the tab being opened is synchronized; hidden drafts are left untouched.
 export function startTabPlayers({players,element:$}){
@@ -13,3 +13,4 @@ export function startTabPlayers({players,element:$}){
    select.value=current;select.dispatchEvent(new Event('change',{bubbles:true}));current=select.value;
  }};
 }
+
