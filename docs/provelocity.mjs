@@ -38,7 +38,7 @@ export function validateProVelocity(record,players){
   const drill=plan[i],variable=typeof drill.bands_5lb==='string';
   if(step.drill_id!==drill.id||step.completed!==true||typeof step.notes!=='string'||step.notes.length>300||!integer(step.actual_reps,1,1000)||typeof drill.reps==='number'&&step.actual_reps!==drill.reps||drill.reps==='5–10'&&!integer(step.actual_reps,5,10))throw Error('Complete the prescribed reps for each ProVelocity drill.');
   if(variable?!integer(step.bands_5lb,0,50)||!integer(step.bands_15lb,0,50)||step.bands_5lb+step.bands_15lb<1:step.bands_5lb!==drill.bands_5lb||step.bands_15lb!==drill.bands_15lb)throw Error('Record the prescribed bands, or your actual maximum where requested.');
-  if(!Array.isArray(step.swings_mph)||step.swings_mph.length!==3||!step.swings_mph.every(speed)||r.radar_mode==='pocket_radar'&&!step.swings_mph.some(n=>n!==null)||r.radar_mode==='no_radar'&&step.swings_mph.some(n=>n!==null))throw Error('Enter a Pocket Radar speed, or choose no radar before starting.');
+  if(!Array.isArray(step.swings_mph)||step.swings_mph.length!==3||!step.swings_mph.every(speed)||r.entry_mode!=='completion'&&r.radar_mode==='pocket_radar'&&!step.swings_mph.some(n=>n!==null)||r.radar_mode==='no_radar'&&step.swings_mph.some(n=>n!==null))throw Error('Enter a Pocket Radar speed, or choose no radar before starting.');
  });
  return true;
 }
