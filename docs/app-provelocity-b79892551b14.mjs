@@ -1,3 +1,30 @@
+// Personal-use accounts keep their records, but never contribute to team benchmarks.
+const TEAM_AVERAGE_SCOPE='team-roster-20261031';
+const TEAM_AVERAGE_EXCLUSIONS=Object.freeze(['Marcus','Dominic','Demo']);
+function isTeamAveragePlayer(value){
+ const name=typeof value==='string'?value:value?.player??value?.name??'';
+ const first=String(name).trim().split(/\s+/)[0].toLowerCase();
+ return Boolean(first)&&!TEAM_AVERAGE_EXCLUSIONS.some(name=>name.toLowerCase()===first);
+}
+
+function rebuildTeamBenchmarks(season,players){
+ // Recalculate ratios from eligible players' opportunities, never average percentages.
+ // Unsupported/missing denominators remain unavailable instead of retaining a mixed-roster total.
+ for(const group of ['batting','pitching','fielding']){
+  season.benchmarks[group]??={};
+  for(const key of Object.keys(season.benchmarks[group]))season.benchmarks[group][key]={value:null,kind:'team rate'};
+ }
+ const sum=(group,key)=>{const values=players.map(p=>gcNumber(p[group]?.[key]));return values.some(v=>v===null)?null:values.reduce((a,b)=>a+b,0);};
+ const add=(...values)=>values.some(v=>v===null)?null:values.reduce((a,b)=>a+b,0);
+ const set=(group,key,value)=>season.benchmarks[group][key]={value,kind:'team rate'};
+ const b=key=>sum('batting',key),p=key=>sum('pitching',key),f=key=>sum('fielding',key);
+ const obp=gcRate(add(b('H'),b('BB'),b('HBP')),add(b('AB'),b('BB'),b('HBP'),b('SF'))),slg=gcRate(b('TB'),b('AB'));
+ for(const [key,value]of [['AVG',gcRate(b('H'),b('AB'))],['OBP',obp],['SLG',slg],['OPS',add(obp,slg)],['BB/K',gcRate(b('BB'),b('SO'))],['SB%',gcRate(b('SB')===null?null:b('SB')*100,add(b('SB'),b('CS')))]])set('batting',key,value);
+ const outs=players.map(v=>gcOuts(v.pitching?.IP)),innings=outs.some(v=>v===null)?null:outs.reduce((a,b)=>a+b,0)/3;
+ set('pitching','WHIP',gcRate(add(p('H'),p('BB')),innings));
+ set('fielding','FPCT',gcRate(add(f('PO'),f('A')),f('TC')));
+}
+
 // Exact 32-inch program from the coach-supplied ten-page ProVelocity PDF.
 export const PV_PROGRAM_ID='provelocity-32in-v1';
 export const PV_MANUAL='https://provelocitybat.com/pages/training-manual-v1';
