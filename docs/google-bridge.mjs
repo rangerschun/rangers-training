@@ -17,7 +17,7 @@ export function createGoogleBridge(config,{window=globalThis.window,document=glo
   const data=event.data;
   if(closed||!isGoogleBridgeOrigin(event.origin)||!data||data.channel!==channel||data.nonce!==nonce||!event.source)return;
   if(data.type==='ready'){
-   if(peer&&peer!==event.source)return;peer=event.source;peerOrigin=event.origin;status.textContent='Google connected. Return here and press Continue. Keep the Google window open while using Rangers Training.';
+   if(peer&&peer!==event.source)return;peer=event.source;peerOrigin=event.origin;status.textContent='Google Sheet connected. Sign-in continues automatically.';
    if(!port&&window.MessageChannel){const pair=new window.MessageChannel();port=pair.port1;port.onmessage=event=>{const reply=event.data;if(reply?.channel===channel&&reply.nonce===nonce&&reply.type==='response')respond(reply);};port.start();peer.postMessage({channel,nonce,type:'connect'},peerOrigin,[pair.port2]);}
    for(const entry of pending.values())if(!entry.sent){entry.sent=true;send(entry);}return;
   }
@@ -42,18 +42,37 @@ export function createGoogleBridge(config,{window=globalThis.window,document=glo
   return api;
  }
  function connect(){
-  if(popup&&!popup.closed){popup.focus();return;}
+  if(popup&&!popup.closed){popup.focus();return true;}
   const opened=window.open(url.href,'rangers-training-google','popup,width=520,height=420');
-  if(!opened){status.textContent='Allow this site to open the Google connection window, then try again.';return;}
+  if(!opened){status.textContent='Allow the Google connection window, then tap Sign in again. Your password has not been checked yet.';return false;}
   popup=opened;port?.close();port=null;peer=null;peerOrigin='';for(const entry of pending.values())entry.sent=false;
-  status.textContent='Opening Google. Return here when connected, and keep that window open.';
+  status.textContent='Connecting to Google Sheet… If a Google window opens, keep it open and return here. Sign-in will finish automatically.';return true;
  }
- return {run:runner(),call,connect,status,dispose(){closed=true;port?.close();window.removeEventListener('message',receive);frame.remove();for(const e of pending.values()){clearTimeout(e.timer);e.reject(Error('The coach connection closed.'));}pending.clear();}};
+ function prepareLogin(){
+  if(closed){status.textContent='Reload Rangers Training to reconnect, then sign in.';return false;}
+  if(popup&&peer===popup&&popup.closed){port?.close();port=null;peer=null;peerOrigin='';}
+  if(peer){status.textContent='Signing in and loading your Google Sheet records…';return true;}
+  // This runs synchronously in the submit gesture so Safari can open the connection.
+  return connect();
+ }
+ return {run:runner(),call,connect,prepareLogin,status,dispose(){closed=true;port?.close();window.removeEventListener('message',receive);frame.remove();for(const e of pending.values()){clearTimeout(e.timer);e.reject(Error('The coach connection closed.'));}pending.clear();}};
 }
 export function installGoogleBridge(config){
  if(!config||globalThis.google?.script?.run)return null;
  if(globalThis.location?.origin!==config.origin)return null;
  const bridge=createGoogleBridge(config);globalThis.google={script:{run:bridge.run}};
- for(const id of ['player-access-form','gamechanger-access-form']){const form=document.getElementById(id);if(!form)continue;const button=document.createElement('button');button.type='button';button.className='secondary-button';button.textContent='Connect Google in a separate window';button.addEventListener('click',bridge.connect);if(id==='player-access-form')form.append(button,bridge.status);else{const status=bridge.status.cloneNode(true);new MutationObserver(()=>{status.textContent=bridge.status.textContent;}).observe(bridge.status,{childList:true,subtree:true,characterData:true});form.append(button,status);}}
+ for(const id of ['player-access-form','gamechanger-access-form']){
+  const form=document.getElementById(id);if(!form)continue;
+  const submit=form.querySelector('button[type="submit"]');if(submit)submit.textContent='Sign in';
+  const help=document.createElement('p');help.className='field-help';help.textContent='Signing in connects to Google Sheet and loads your player records.';
+  const status=id==='player-access-form'?bridge.status:bridge.status.cloneNode(true);
+  if(status!==bridge.status)new MutationObserver(()=>{status.textContent=bridge.status.textContent;}).observe(bridge.status,{childList:true,subtree:true,characterData:true});
+  form.append(help,status);
+  form.addEventListener('submit',event=>{
+   if(submit?.disabled||!form.checkValidity())return;
+   if(!bridge.prepareLogin()){event.preventDefault();event.stopImmediatePropagation();}
+  },true);
+ }
  return bridge;
 }
+
