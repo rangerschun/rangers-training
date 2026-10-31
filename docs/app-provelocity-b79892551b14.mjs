@@ -243,13 +243,14 @@ export function gcReconciliation(season){
  return indices.flatMap(i=>{const sum=gcSum(season.rows.map(row=>row[i]),season.rows.map((_,j)=>j)),official=gcNumber(season.totals[i]);return sum!==null&&official!==null&&sum!==official?[{index:i,group:i<148?'Pitching':'Fielding',stat:season.headers[i],player_sum:sum,team_total:official}]:[];});
 }
 export function gcComparisons(season,player,group){
- The team bar currently includes team players only from cached Sheet results.
+  const rows=season.rows.filter(row=>isTeamAveragePlayer(row[2])),era=season.era_innings,metrics=[];
+ const total=rows.length===season.rows.length?season.totals:season.totals.map((_,i)=>i===54?gcInnings(rows.reduce((n,r)=>n+(gcOuts(r[i])??0),0)):gcSum(rows.map(r=>r[i]),rows.map((_,j)=>j)));
  const number=(row,i)=>gcNumber(row?.[i]),sum=(row,indices)=>gcSum(row,indices);
  const ratio=(row,n,d)=>gcRatio(sum(row,n),sum(row,d));
  const rate=(row,i,multiple=1)=>{const outs=gcOuts(row?.[54]),value=number(row,i);return outs===null||value===null?null:gcRatio(value*multiple,outs/3);};
  function add(id,label,format,calculate,basis,lower=false){metrics.push({id,label,format,player:player?calculate(player):null,team:calculate(total),basis,lower});}
  function perGame(i,label){
-  const rows=season.rows.filter(row=>isTeamAveragePlayer(row[2])),era=season.era_innings,metrics=[];  const total=rows.length===season.rows.length?season.totals:season.totals.map((_,i)=>i===54?gcInnings(rows.reduce((n,r)=>n+(gcOuts(r[i])??0),0)):gcSum(rows.map(r=>r[i]),rows.map((_,j)=>j)));
+    const numerator=gcSum(rows.map(row=>row[i]),rows.map((_,j)=>j)),gp=gcSum(rows.map(row=>row[3]),rows.map((_,j)=>j));
   metrics.push({id:'game-'+i,label:label+' / game',format:'decimal',player:player?gcRatio(number(player,i),number(player,3)):null,team:gcRatio(numerator,gp),basis:`Per player-game: summed ${label.toLowerCase()} ÷ summed player GP (${gp??'—'}).`,lower:i===152});
  }
  if(group==='batting'){
@@ -284,12 +285,13 @@ export function gcDifference(metric){if(metric.player===null||metric.team===null
 
 const gcRate=(n,d)=>n!==null&&d!==null&&d>0?n/d:null;
 export function applyGameChangerExposure(season){
- const numerator=gcSum(rows.map(row=>row[i]),rows.map((_,j)=>j)),gp=gcSum(rows.map(row=>row[3]),rows.map((_,j)=>j));
+  const allPlayers=season.players??[],players=allPlayers.filter(isTeamAveragePlayer);season.benchmarks??={batting:{},pitching:{},fielding:{}};
+ if(players.length!==allPlayers.length)rebuildTeamBenchmarks(season,players);
  for(const group of ['batting','pitching','fielding']){season.benchmarks[group]??={};const keys=group==='batting'?['H','1B','2B','3B','XBH','HR','RBI','R','BB','SO','SB']:group==='pitching'?['SO','BB','H','ER','R']:['TC','A','PO','E','DP','TP'];
   const exposure=group==='pitching'?players.reduce((a,p)=>a+(gcOuts(p.pitching?.IP)??0)/3,0):players.reduce((a,p)=>a+(Number(p.batting?.GP)||0),0);
   for(const key of keys){const sum=players.reduce((a,p)=>a+(Number(p[group]?.[key])||0),0);season.benchmarks[group][key]={value:gcRate(sum,exposure),kind:'opportunity rate',unit_rate:gcRate(sum,exposure),opportunity:group==='pitching'?'IP':'GP'};}
  }
- const allPlayers=season.players??[],players=allPlayers.filter(isTeamAveragePlayer);season.benchmarks??={batting:{},pitching:{},fielding:{}};  if(players.length!==allPlayers.length)rebuildTeamBenchmarks(season,players);player.pitching['SO/BB']=gcRate(gcNumber(player.pitching.SO),gcNumber(player.pitching.BB));}
+  for(const player of allPlayers){player.pitching??={};player.pitching['SO/BB']=gcRate(gcNumber(player.pitching.SO),gcNumber(player.pitching.BB));}
  const pitchingSO=players.reduce((n,p)=>n+(gcNumber(p.pitching.SO)??0),0),pitchingBB=players.reduce((n,p)=>n+(gcNumber(p.pitching.BB)??0),0);const incompletePitching=players.some(p=>{const so=gcNumber(p.pitching.SO),bb=gcNumber(p.pitching.BB);return (so===null||bb===null)&&(so!==null||bb!==null||Number(p.pitching.GP)>0||(gcOuts(p.pitching.IP)??0)>0);});season.benchmarks.pitching['SO/BB']={value:incompletePitching?null:gcRate(pitchingSO,pitchingBB),kind:'team rate'};
  const pa=players.reduce((n,p)=>n+(Number(p.batting?.PA)||0),0),so=players.reduce((n,p)=>n+(Number(p.batting?.SO)||0),0);season.benchmarks.batting['K%']={value:gcRate(so*100,pa),kind:'team rate'};
  if(season.ranges)for(const key of Object.keys(season.ranges))applyGameChangerExposure(season.ranges[key]);return season;
@@ -616,8 +618,8 @@ export function startConcentrationGrid({element,players=[],flow,readRemote,getDa
   }
   async function refreshTeam(){
     if(refreshing||!player||!readRemote)return;refreshing=true;const version=++refreshVersion;element('concentration-refresh').disabled=true;element('concentration-team-status').textContent='Refreshing team average…';
-    try{const summary=await readRemote();if(!summary||summary.team_scope!==TEAM_AVERAGE_SCOPE||!Number.isInteger(summary||summary.session_count<0||(summary.session_count>0&&(!Number.isFinite(summary.average_ms)||summary.average_ms<=0||summary.average_ms>86400000)))throw Error('Invalid team average');if(version!==refreshVersion)return;remoteSummary=summary;element('concentration-team-status').textContent='if(!summary||summary.team_scope!==TEAM_AVERAGE_SCOPE||!Number.isInteger(summary.session_count) Newly saved times may appear after syncing.';}
-    catch{if(version===refreshVersion){remoteSummary=null;element('concentration-team-status').textContent='Team connection unavailable. Team average uses completed grids from team players only, across devices. Personal times remain saved here.';}}
+        try{const summary=await readRemote();if(!summary||summary.team_scope!==TEAM_AVERAGE_SCOPE||!Number.isInteger(summary.session_count)||summary.session_count<0||(summary.session_count>0&&(!Number.isFinite(summary.average_ms)||summary.average_ms<=0||summary.average_ms>86400000)))throw Error('Invalid team average');if(version!==refreshVersion)return;remoteSummary=summary;element('concentration-team-status').textContent='Team average uses completed grids from team players only, across devices. Newly saved times may appear after syncing.';}
+        catch{if(version===refreshVersion){remoteSummary=null;element('concentration-team-status').textContent='Team connection unavailable. The team bar currently includes team players only from cached Sheet results. Personal times remain saved here.';}}
     finally{refreshing=false;element('concentration-refresh').disabled=false;results();}
   }
   function saveTime(){
@@ -3957,7 +3959,7 @@ function chosenBaseballSessions(){return baseballRecords.filter(r=>r.player===$(
   function editBaseballSession(r){if(baseballDirty&&!window.confirm('Replace the unsaved baseball session with this saved session?'))return;
   baseballEditingId=r.id;$('baseball-date').value=r.session_date;$('baseball-context').value=r.context;showBaseballDistance(r.distance_ft);$('baseball-radar-note').textContent=r.device?'Radar: '+r.device+' · saved session':'Radar was not recorded for this saved session.';$('baseball-notes').value=r.notes;r.throws.forEach((value,i)=>$('baseball-throw-'+(i+1)).value=value??'');$('baseball-error').hidden=true;$('baseball-cancel-edit').hidden=false;$('baseball-mode-label').textContent='EDITING SAVED BASEBALL SESSION';$('baseball-save').replaceChildren(document.createTextNode('Update baseball session '),el('span','','✓'));baseballDirty=false;renderBaseballStats();$('baseball-throw-1').focus();
 }
-function renderBaseballTeamAverage(){const panel=$('baseball-team-average');if(!panel)return;const players=PLAYER_LABELS.filter(for(const player of allPlayers){player.pitching??={};);if(players.some(name=>!baseballRecords.some(r=>r.player===name))){panel.hidden=true;return;}const avgs=players.map(name=>baseballRecords.filter(r=>r.player===name).map(r=>summarizeThrows(r.throws.filter(v=>v!==null)).averageTop5).filter(Number.isFinite));panel.hidden=false;panel.hidden=false;if(avgs.some(a=>!a.length)){$('baseball-team-average-value').textContent='—';$('baseball-team-average-note').textContent='Waiting for at least five valid throws from every active player.';return;}const avg=avgs.reduce((s,a)=>s+a.reduce((x,y)=>x+y,0)/a.length,0)/players.length;panel.hidden=false;$('baseball-team-average-value').textContent=avg.toFixed(1);$('baseball-team-average-note').textContent=players.length+' active players · all-time player averages';}function renderBaseballHistory(){renderBaseballTeamAverage();
+function renderBaseballTeamAverage(){const panel=$('baseball-team-average');if(!panel)return;const players=PLAYER_LABELS.filter(name=>name!=='Andre'&&isTeamAveragePlayer(name));if(players.some(name=>!baseballRecords.some(r=>r.player===name))){panel.hidden=true;return;}const avgs=players.map(name=>baseballRecords.filter(r=>r.player===name).map(r=>summarizeThrows(r.throws.filter(v=>v!==null)).averageTop5).filter(Number.isFinite));panel.hidden=false;panel.hidden=false;if(avgs.some(a=>!a.length)){$('baseball-team-average-value').textContent='—';$('baseball-team-average-note').textContent='Waiting for at least five valid throws from every active player.';return;}const avg=avgs.reduce((s,a)=>s+a.reduce((x,y)=>x+y,0)/a.length,0)/players.length;panel.hidden=false;$('baseball-team-average-value').textContent=avg.toFixed(1);$('baseball-team-average-note').textContent=players.length+' active players · all-time player averages';}function renderBaseballHistory(){renderBaseballTeamAverage();
   const player=$('baseball-player').value,records=chosenBaseballSessions();$('baseball-history-title').textContent=player?`${player} · ${records.length} baseball session${records.length===1?'':'s'}${baseballDeviceSaved?' saved':' in this page'}`:'Choose a player to view sessions';$('baseball-export').disabled=!records.length;$('baseball-delete-player').disabled=!records.length;$('baseball-history').replaceChildren();
   if(!records.length){$('baseball-history').append(el('p','workout-empty',player?'No baseball sessions recorded yet. Enter your first session above.':'Choose your name to view baseball sessions.'));return;}
   for(const r of records){
