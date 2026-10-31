@@ -1,3 +1,4 @@
+import {isTeamAveragePlayer,TEAM_AVERAGE_SCOPE} from './team-averages.mjs';
 import {visionDayNumber,visionNextChange} from './vision-videos.mjs?v=schedule-auto-refresh-20261025';
 /** Ascending-number challenge with completed times in the existing workout journal. */
 export function concentrationNumbers(random=Math.random){
@@ -42,7 +43,7 @@ export function startConcentrationGrid({element,players=[],flow,readRemote,getDa
     return quota;
   }
   function results(){
-    const savedRecords=allRecords(),all=concentrationResults(savedRecords),mine=concentrationResults(savedRecords,player),average=concentrationAverage(mine);
+    const savedRecords=allRecords(),all=concentrationResults(savedRecords).filter(isTeamAveragePlayer),mine=concentrationResults(savedRecords,player),average=concentrationAverage(mine);
     const teamCount=remoteSummary?.session_count??all.length,teamAverage=remoteSummary?remoteSummary.average_ms:concentrationAverage(all);
     const chart=element('concentration-chart');chart.replaceChildren();
     const data=[['Current time',mine[0]?.elapsed_ms??null,mine.length?'Latest completed grid':'Complete your first grid'],['Your average',average,`${mine.length} all-time completed grids from Google Sheet`],['Team average',teamAverage,`${teamCount} all-time completed grids · ${remoteSummary?'coach sheet':'cached Sheet results'}`]],max=Math.max(1,...data.map(d=>d[1]??0));
@@ -53,8 +54,8 @@ export function startConcentrationGrid({element,players=[],flow,readRemote,getDa
   }
   async function refreshTeam(){
     if(refreshing||!player||!readRemote)return;refreshing=true;const version=++refreshVersion;element('concentration-refresh').disabled=true;element('concentration-team-status').textContent='Refreshing team average…';
-    try{const summary=await readRemote();if(!summary||!Number.isInteger(summary.session_count)||summary.session_count<0||(summary.session_count>0&&(!Number.isFinite(summary.average_ms)||summary.average_ms<=0||summary.average_ms>86400000)))throw Error('Invalid team average');if(version!==refreshVersion)return;remoteSummary=summary;element('concentration-team-status').textContent='Team average uses all completed grids received by the coach sheet across devices. Newly saved times may appear after syncing.';}
-    catch{if(version===refreshVersion){remoteSummary=null;element('concentration-team-status').textContent='Team connection unavailable. The team bar currently includes all completed grids on cached Sheet results. Personal times remain saved here.';}}
+    try{const summary=await readRemote();if(!summary||summary.team_scope!==TEAM_AVERAGE_SCOPE||!Number.isInteger(summary.session_count)||summary.session_count<0||(summary.session_count>0&&(!Number.isFinite(summary.average_ms)||summary.average_ms<=0||summary.average_ms>86400000)))throw Error('Invalid team average');if(version!==refreshVersion)return;remoteSummary=summary;element('concentration-team-status').textContent='Team average uses completed grids from team players only, across devices. Newly saved times may appear after syncing.';}
+    catch{if(version===refreshVersion){remoteSummary=null;element('concentration-team-status').textContent='Team connection unavailable. The team bar currently includes team players only from cached Sheet results. Personal times remain saved here.';}}
     finally{refreshing=false;element('concentration-refresh').disabled=false;results();}
   }
   function saveTime(){
@@ -134,3 +135,4 @@ export function concentrationDailyUsage(records,player,date=new Date()){
  }
  return {day,used:ids.size,remaining:Math.max(0,CONCENTRATION_DAILY_LIMIT-ids.size),limit:CONCENTRATION_DAILY_LIMIT};
 }
+
