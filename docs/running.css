@@ -1,0 +1,20 @@
+.running-controls{margin:22px 0;padding:24px;border:1px solid #d9e4ed;border-radius:9px;background:white}
+.running-selectors{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr) minmax(0,1fr);gap:18px}
+.running-selectors label,.running-notes{display:block;min-width:0;font-size:14px;color:#526980;font-weight:650}
+.running-selectors select,.running-selectors input,.running-notes textarea{display:block;width:100%;box-sizing:border-box;min-width:0;min-height:44px;margin-top:8px;padding:11px 12px;border:1px solid #ccdde8;border-radius:6px;font:inherit}
+.running-selectors select{background:var(--dropdown-bg,#f0f7ff)}
+.running-exercises{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;padding:0;list-style:none;margin:20px 0}
+.running-exercise{padding:18px;min-width:0;border:1px solid #d5e4ed;background:#f6faff;border-radius:8px}
+.running-check{display:flex;gap:10px;align-items:flex-start;font-size:15px;line-height:1.5;font-weight:700;color:#29485f}
+.running-check input{width:21px;height:21px;flex:0 0 21px;margin:0;accent-color:#22749b}
+.running-dose{font-size:18px;font-weight:750;color:#172164;margin:15px 0 7px}
+.running-exercise .field-help{font-size:12px;line-height:1.5;margin:8px 0}
+.running-done{background:#eff9f4;border-color:#a9cdb9}
+.running-notes textarea{resize:vertical;font-weight:400}
+.running-actions{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:20px}
+.running-summary{font-size:15px;font-weight:650;color:#31556c}
+.running-history-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 0;border-top:1px solid #dce6ed}
+.running-history-row p{margin:6px 0;font-size:13px;color:#61778b}
+.running-source{font-size:12px;line-height:1.6;color:#61778b;margin-top:18px}
+@media(max-width:1050px){.running-exercises{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:650px){.running-selectors,.running-exercises{grid-template-columns:1fr}.running-controls{padding:18px}.running-history-row{align-items:flex-start;flex-direction:column}}

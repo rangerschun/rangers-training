@@ -51,6 +51,7 @@
  .hitting-programs>.nav-link{font-size:13px;min-height:44px;gap:12px;padding:10px 12px}
 }
 </style>
+<link rel="stylesheet" href="./running.css?v=20261101">
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
@@ -60,6 +61,7 @@
   <p class="nav-label">YOUR WORKSPACE</p>
   <nav aria-label="Main navigation">
     <a href="#workouts" data-nav="workouts" class="nav-link active" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4v16m8-16v16M4 7v10m16-10v10M8 12h8"/></svg>WORKOUT LOG</a>
+    <a href="#running" data-nav="running" class="nav-link"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="16" cy="4" r="2"/><path d="m11 9 4-2 4 4M4 10l6-1 3 5-4 7m4-7 6 5M8 5l3 4-4 7-4 2"/></svg>Running</a>
     <a href="#concentration" data-nav="concentration" class="nav-link"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h18v18H3zM9 3v18m6-18v18M3 9h18M3 15h18"/></svg>Vision Training</a>
     <details id="throwing-menu" class="hitting-menu">
       <summary class="nav-link hitting-toggle"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="15" cy="5" r="2"/><path d="m12 10 4-2 3 4M5 6l6 4-2 6-5 5m5-5 7 5"/></svg>Throwing<svg class="hitting-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary>
@@ -92,6 +94,27 @@
   <main id="main" tabindex="-1">
     <aside id="site-address-notice" class="blast-storage-note" hidden aria-label="New team website"><strong>Rangers team website</strong><p id="site-address-message"></p><a id="site-new-address" href="https://rangerschun.github.io/" class="secondary-button" hidden>Open rangerschun.github.io ↗</a><button id="device-copy-entries" type="button" class="secondary-button" hidden>Copy saved entries from old address</button><p id="device-copy-status" role="status" aria-live="polite"></p></aside>
     <p id="demo-reset-status" class="coverage-note" role="status" hidden></p>
+
+    <section id="view-running" class="view" hidden data-player-access="locked" aria-labelledby="running-title">
+      <div class="tab-player-bar"><label for="running-player">Player<select id="running-player"></select></label></div>
+      <p id="access-message-running" class="player-access-message" role="status">Choose your name and enter your password to continue.</p>
+      <header class="page-heading simple-heading"><div><div class="eyebrow">DRIVELINE / SIX-WEEK PROGRAM</div><h1 id="running-title">Running</h1><p>Follow your training week, watch the demonstrations,<br>and save the exercises you completed.</p></div><img class="page-team-logo" src="./assets/rangers-logo.jpeg" alt="Etobicoke Rangers Baseball Club" width="128" height="128"></header>
+      <section id="running-controls" class="running-controls" aria-labelledby="running-focus">
+        <p id="running-summary" class="running-summary"></p>
+        <form id="running-form">
+          <div class="running-selectors"><label for="running-week">Week<select id="running-week"></select></label><label for="running-day">Training day<select id="running-day"></select></label><label for="running-date">Workout date<input id="running-date" type="date" required></label></div>
+          <h2 id="running-focus">Your running workout</h2><p id="running-variation" class="field-help"></p>
+          <p id="running-day-progress" role="status"></p>
+          <ol id="running-exercises" class="running-exercises"></ol>
+          <label class="running-notes" for="running-notes">Day notes (optional)<textarea id="running-notes" rows="3" maxlength="400"></textarea></label>
+          <p id="running-error" class="form-error" role="alert" hidden></p>
+          <div class="running-actions"><button id="running-save" type="submit" class="primary-button">Save running workout</button><span class="field-help">Check the work you completed, then save. Partial progress is allowed.</span></div>
+        </form>
+        <p id="running-announcement" role="status" aria-live="polite"></p>
+        <p class="running-source">Source: <a href="https://github.com/andrewschun/Chun-Running" target="_blank" rel="noopener noreferrer">Chun-Running</a> · Driveline Running 6 Week.pdf, pages 1–4. Four training days per week; exercise changes begin in Week 4. ea = each · yd = yards · MB = medicine ball · OH = overhead. Demo availability depends on Vimeo.</p>
+      </section>
+      <section class="running-controls" aria-labelledby="running-history-title"><h2 id="running-history-title">Your running history</h2><div id="running-history"></div><button id="running-clear" type="button" class="delete-button">Clear Entries</button></section>
+    </section>
     <section id="view-targets" class="view" aria-labelledby="targets-title" hidden data-player-access="locked">
       <div class="tab-player-bar"><div class="player-field"><label for="player"><span class="step-number">01</span> SELECT PLAYER</label><div class="select-wrap"><select id="player" aria-describedby="player-help"><option value="">Choose a player</option><option value="Aidan">Aidan</option><option value="Ambrose">Ambrose</option><option value="Andre">Andre</option><option value="Carson">Carson</option><option value="Carter">Carter</option><option value="Jayden">Jayden</option><option value="Joseph">Joseph</option><option value="Josh">Josh</option><option value="Max">Max</option><option value="Michael">Michael</option><option value="Nathan">Nathan</option><option value="Raiden">Raiden</option><option value="Rory">Rory</option><option value="Walker">Walker</option><option value="Marcus">Marcus</option><option value="Dominic">Dominic</option><option value="Demo">Demo</option></select></div><p id="player-help" class="field-help">Choose your name for this session</p></div></div>
       <p id="access-message-targets" class="player-access-message" role="status">Choose your name and enter your password to continue.</p>
@@ -443,10 +466,11 @@
 <dialog id="method-dialog" aria-labelledby="method-title"><div class="dialog-heading"><span class="eyebrow">KNOW THE SOURCE</span><button class="close-dialog" type="button" aria-label="Close data information">×</button></div><h2 id="method-title">A reference, with the<br>details kept intact.</h2><div class="method-points"><p><strong>Observed · whole mph</strong>Inputs from 70 through 86 mph show the exact displayed values transcribed from your 17 supplied calculator screenshots.</p><p><strong>Interpolated · decimal mph</strong>Within that range, decimal inputs use a straight-line estimate between neighboring screenshots, rounded to one decimal. This is an estimate, not the original Driveline formula.</p><p><strong>Exact source coverage: 70–86 mph</strong>The previous 80–86 mph projections have been replaced by screenshot observations. Inputs outside this range receive no targets. The original calculator formula has not been reconstructed.</p><p><strong>Colors and blanks matter</strong>Every original ball color, drill label and blank is retained in Driveline view. The separate DUBS 150 g projections do not replace any screenshot observation.</p><p><strong>Equipment stays specific</strong>These are Driveline reference observations. DUBS view copies Driveline references for 100, 225, 350, 450, and 1,000 g nominal matches. These are not validated DUBS output targets. Your supplied chart identifies orange as 350 g. The dark green DUBS 150 g row has four mass-interpolated projections: 60% of the gray 100 g reference plus 40% of the red 225 g reference. Roll-Ins are not projected. No yellow 150 g source readings or measured DUBS readings validate these projections.</p></div><button class="primary-button close-dialog" type="button">Back to the targets <span>→</span></button></dialog>
 <noscript><div class="noscript">Enable JavaScript to calculate targets. Blast entry requires JavaScript; PlyoCare throw entry remains on hold.</div></noscript>
 <script type="module" src="./login-connection.mjs?v=20261031"></script>
-<script type="module" src="./app-provelocity-b79892551b14.mjs?v=team-roster-20261031?v=vision-session-20261030"></script>
+<script type="module" src="./app-provelocity-b79892551b14.mjs?v=team-roster-20261031&amp;running=20261101?v=vision-session-20261030"></script>
 <script type="module" src="./hitting-navigation.mjs?v=20261031"></script>
 <script type="module" src="./throwing-navigation.mjs?v=20261031"></script>
 </body></html>
+
 
 
 
