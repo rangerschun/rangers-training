@@ -1,4 +1,4 @@
-import {startRunning} from './running-ui.mjs?v=20261101';
+import {startRunning} from './running-ui.mjs?v=running-four-20261101';
 // Personal-use accounts keep their records, but never contribute to team benchmarks.
 const TEAM_AVERAGE_SCOPE='team-roster-20261031';
 const TEAM_AVERAGE_EXCLUSIONS=Object.freeze(['Marcus','Dominic','Demo']);
@@ -4009,7 +4009,7 @@ const gameChangerCoach=startGameChangerCoach({element:$,publish:request=>gameCha
 $('coach-access-lock').addEventListener('click',()=>{coachSheetCode='';gameChangerCoach.reset();coachSummary.clear();coachPasswordReset.clear();teamCalendar.clear();playerAccess.refresh();});
 const routeLabels = { workouts: 'WORKOUT LOG', throwing: 'THROWING ROUTINE',  targets: 'PLYOCARE LAB', tracker: 'BASEBALL THROWS', pulse: 'DRIVELINE PULSE', blast: 'BLAST MOTION', overspeed: 'OVERSPEED PROGRAM',provelocity:'PROVELOCITY',running:'RUNNING', axe:'AXE BATS', concentration: 'VISION TRAINING', gamechanger: 'GAMECHANGER STATS', approach: 'TRAINING APPROACH', coach: 'COACH DESK', calendar:'TEAM CALENDAR' };
 function route() {
-  const key = location.hash.slice(1);
+  const key = location.hash.slice(1).split('/')[0];
   const view = Object.hasOwn(routeLabels, key) ? key : 'workouts';
   tabPlayers.activate(view);if(view==='gamechanger'){gameChanger.syncPlayer(tabPlayers.current());void gameChanger.refresh();}
   playerAccess.activate(view);
