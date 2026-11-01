@@ -1,3 +1,4 @@
+import {startRunning} from './running-ui.mjs?v=20261101';
 // Personal-use accounts keep their records, but never contribute to team benchmarks.
 const TEAM_AVERAGE_SCOPE='team-roster-20261031';
 const TEAM_AVERAGE_EXCLUSIONS=Object.freeze(['Marcus','Dominic','Demo']);
@@ -1165,7 +1166,7 @@ export function installGoogleBridge(config){
  return bridge;
 }
 
-export const TAB_PLAYER_IDS={workouts:'workout-player',throwing:'throwing-player',targets:'player',tracker:'baseball-player',pulse:'pulse-player',blast:'blast-player',overspeed:'overspeed-player',provelocity:'pv-player',axe:'axe-player',concentration:'concentration-player',calendar:'calendar-player'};
+export const TAB_PLAYER_IDS={workouts:'workout-player',throwing:'throwing-player',targets:'player',tracker:'baseball-player',pulse:'pulse-player',blast:'blast-player',overspeed:'overspeed-player',provelocity:'pv-player',running:'running-player',axe:'axe-player',concentration:'concentration-player',calendar:'calendar-player'};
 // Each existing form handles its own unsaved-change guard before this listener runs.
 // Only the tab being opened is synchronized; hidden drafts are left untouched.
 export function startTabPlayers({players,element:$}){
@@ -3996,6 +3997,7 @@ const concentrationGrid=startConcentrationGrid({element:$,players:PLAYER_LABELS,
 
 const throwingCalendar=startThrowingCalendar({players:PLAYER_LABELS,scope:rosterHash.toString(16),element:$,flow:throwingFlow,subscribe:listener=>workoutFlow.subscribe(listener),onStartChange:(player,date)=>savePlayerSettings(player,{throwing_start_date:date})});
 axePrograms=startAxePrograms({element:$,players:PLAYER_LABELS,flow:workoutFlow,download:downloadFile,onNavigate:()=>{tabPlayers?.setCurrent($('axe-player').value);location.hash='#axe';}});
+const runningProgram=startRunning({players:PLAYER_LABELS,flow:workoutFlow,element:$,validate:validateWorkout,ready:player=>sheetSync?.ready(player)??false});
 const proVelocity=startProVelocity({players:PLAYER_LABELS,flow:workoutFlow,element:$,download:downloadFile,ready:player=>sheetSync?.ready(player)??false});
 tabPlayers=startTabPlayers({players:PLAYER_LABELS,element:$});
 const playerAccess=startPlayerAccess({players:PLAYER_LABELS,hashes:PLAYER_JERSEY_HASHES,element:$,matches:async(player,password,hashes,newPassword)=>{if(!sheetSync)throw Error('Google Sheet is unavailable. Please reload and try again.');return sheetSync.login(player,password,newPassword);},canAccessView:view=>view==='calendar'&&calendarCoachAccess(),cloudStatus:player=>sheetSync?.status(player)??{ready:false,message:'Google Sheet is connecting…'},onRetry:(player,view)=>{if(sheetSync?.status(player).conflict){void sheetSync.review(player,message=>window.confirm(message)).catch(()=>{});return;}if(!sheetSync?.hasSession(player)){playerAccess.revoke(player);playerAccess.activate(view);return;}void sheetSync.refresh(player).catch(()=>{playerAccess.revoke(player);playerAccess.activate(view);});}});
@@ -4005,7 +4007,7 @@ const coachSummary=startCoachPlayerSummary({players:PLAYER_LABELS,element:$,down
 const coachPasswordReset=startCoachPasswordReset({element:$,players:PLAYER_LABELS,isCoach:()=>coachAccess.isVerified(),reset:player=>gameChangerRemote('resetPlayerPassword',[{player,code:coachSheetCode}])});
 const gameChangerCoach=startGameChangerCoach({element:$,publish:request=>gameChangerRemote('publishGameChangerStats',[{...request,code:request.code||coachSheetCode}]),onPublished:seasons=>gameChanger.apply(seasons),isCoach:()=>coachAccess.isVerified()});
 $('coach-access-lock').addEventListener('click',()=>{coachSheetCode='';gameChangerCoach.reset();coachSummary.clear();coachPasswordReset.clear();teamCalendar.clear();playerAccess.refresh();});
-const routeLabels = { workouts: 'WORKOUT LOG', throwing: 'THROWING ROUTINE',  targets: 'PLYOCARE LAB', tracker: 'BASEBALL THROWS', pulse: 'DRIVELINE PULSE', blast: 'BLAST MOTION', overspeed: 'OVERSPEED PROGRAM',provelocity:'PROVELOCITY', axe:'AXE BATS', concentration: 'VISION TRAINING', gamechanger: 'GAMECHANGER STATS', approach: 'TRAINING APPROACH', coach: 'COACH DESK', calendar:'TEAM CALENDAR' };
+const routeLabels = { workouts: 'WORKOUT LOG', throwing: 'THROWING ROUTINE',  targets: 'PLYOCARE LAB', tracker: 'BASEBALL THROWS', pulse: 'DRIVELINE PULSE', blast: 'BLAST MOTION', overspeed: 'OVERSPEED PROGRAM',provelocity:'PROVELOCITY',running:'RUNNING', axe:'AXE BATS', concentration: 'VISION TRAINING', gamechanger: 'GAMECHANGER STATS', approach: 'TRAINING APPROACH', coach: 'COACH DESK', calendar:'TEAM CALENDAR' };
 function route() {
   const key = location.hash.slice(1);
   const view = Object.hasOwn(routeLabels, key) ? key : 'workouts';
@@ -4025,10 +4027,11 @@ function route() {
   if(Object.hasOwn(TAB_PLAYER_IDS,view)){const name=$(TAB_PLAYER_IDS[view]).value;if(name&&playerAccess.isVerified(name)&&sheetSync?.hasSession(name))void sheetSync.refresh(name).catch(()=>{});}
   if(view==='calendar'&&(calendarCoachAccess()||playerAccess.isVerified($('calendar-player').value)&&sheetSync?.hasSession($('calendar-player').value)))void teamCalendar.activate();
   if(view==='provelocity')proVelocity.refresh();
-  if(view==='blast')renderBlastHistory();
+    if(view==='running')runningProgram.refresh();
+if(view==='blast')renderBlastHistory();
   if(view==='concentration'){visionVideos.refresh();void concentrationGrid.refreshTeam();}
   if(view==='coach'&&coachAccess.isVerified())void refreshCoachSheet(coachSheetCode).catch(error=>{$('team-journal-status').textContent=error.message;});
-  document.title = `Rangers | ${view === 'targets' ? 'PlyoCare Lab' : {throwing:'Throwing routine',tracker:'Baseball throws',pulse:'Driveline Pulse',blast:'Blast Motion',workouts:'Workout log',overspeed:'OverSpeed program',provelocity:'ProVelocity',axe:'Axe Bats',concentration:'Vision Training',gamechanger:'GameChanger stats',approach:'Training approach',coach:'Coach desk',calendar:'Team calendar'}[view]}`;
+    document.title = `Rangers | ${view === 'targets' ? 'PlyoCare Lab' : {throwing:'Throwing routine',tracker:'Baseball throws',pulse:'Driveline Pulse',blast:'Blast Motion',workouts:'Workout log',overspeed:'OverSpeed program',provelocity:'ProVelocity',running:'Running',axe:'Axe Bats',concentration:'Vision Training',gamechanger:'GameChanger stats',approach:'Training approach',coach:'Coach desk',calendar:'Team calendar'}[view]}`;
   if (started) {
     const heading = $(`view-${view}`).querySelector('h1');
     heading.tabIndex = -1;
