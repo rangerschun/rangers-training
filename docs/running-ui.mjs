@@ -1,14 +1,17 @@
+import {startOtaRunning} from './ota-running-ui.mjs?v=20261101';
+import {RUNNING_PROGRAMS,otaBeginnerProgress,runningProgramFromHash} from './ota-running-program.mjs?v=20261101';
 import {RUNNING_DAYS,RUNNING_WEEKS,runningDay,runningSource,runningRecord,runningProgress,runningNotes,runningToday} from './running-program.mjs?v=20261101';
 export function startRunning({players,flow,element:$,validate,ready=()=>true}){
  const make=(tag,cls,text)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(text!==undefined)e.textContent=text;return e;};
- let player='',week=1,day=1,dirty=false;
+ let player='',week=1,day=1,dirty=false,program=runningProgramFromHash(globalThis.location?.hash);
+ const ota=startOtaRunning({players,flow,element:$,validate,ready,onChooseProgram:chooseProgram});
  const picker=$('running-player'),weekPicker=$('running-week'),dayPicker=$('running-day');
  for(const [select,options]of [[picker,[['','Choose a player'],...players.map(p=>[p,p])]], [weekPicker,RUNNING_WEEKS.map(w=>[w,'Week '+w])], [dayPicker,RUNNING_DAYS.map((d,i)=>[i+1,d.day+' · '+d.focus])]]){
   select.replaceChildren();for(const [value,label]of options){const o=make('option','',label);o.value=String(value);select.append(o);}
  }
  const own=()=>flow.records().filter(r=>r.player===picker.value&&/^driveline-running-w[1-6]-d[1-4]$/.test(r.source_template_id??''));
  const current=()=>own().find(r=>r.source_template_id===runningSource(week,day));
- const guard=()=>!dirty||window.confirm('Discard unsaved Running changes?');
+ const guard=()=>!(dirty||ota.hasDraft())||window.confirm('Discard unsaved Running changes?');
  function clearError(){$('running-error').hidden=true;$('running-error').textContent='';}
  function error(e){$('running-error').textContent=e.message;$('running-error').hidden=false;}
  function progress(){
@@ -31,6 +34,13 @@ export function startRunning({players,flow,element:$,validate,ready=()=>true}){
   }
  }
  function render(){
+  const advanced=otaBeginnerProgress(flow.records(),picker.value).completed;
+  $('running-advanced-label').textContent=RUNNING_PROGRAMS['ota-advanced']+(advanced<48?' · Locked':'');
+  const driveline=program==='driveline';$('running-controls').hidden=$('running-driveline-history').hidden=!driveline;$('running-ota-controls').hidden=!(!driveline);
+  $('running-heading-eyebrow').textContent=driveline?'DRIVELINE / SIX-WEEK PROGRAM':RUNNING_PROGRAMS[program].toUpperCase();
+  $('running-heading-description').textContent=driveline?'Follow your training week, watch the demonstrations, and save the exercises you completed.':'Choose your session, complete the listed work, and save your progress.';
+  if(!driveline){ota.activate(program);return;}
+  $('running-ota-history-card').hidden=true;
   clearError();$('running-announcement').textContent='';const r=current(),plan=runningDay(week,day);progress();
   $('running-focus').textContent=`Week ${week} · ${plan.day} · ${plan.focus}`;
   $('running-variation').textContent=week>=4?'Weeks 4–6 include kneeling starts, hurdle and skater sprint-outs, and competition in the T Drill.':'Weeks 1–3 use the original start and hurdle variations. Exercise changes begin in Week 4.';
@@ -44,7 +54,7 @@ export function startRunning({players,flow,element:$,validate,ready=()=>true}){
   });
   dirty=false;updateDraft();history();
  }
- picker.addEventListener('change',()=>{if(!guard()){picker.value=player;return;}player=picker.value;week=1;day=1;dirty=false;$('running-announcement').textContent='';render();});
+ picker.addEventListener('change',()=>{if(!guard()){picker.value=player;return;}player=picker.value;week=1;day=1;dirty=false;ota.reset();$('running-announcement').textContent='';render();});
  weekPicker.addEventListener('change',()=>{if(!guard()){weekPicker.value=String(week);return;}week=Number(weekPicker.value);day=1;dirty=false;render();});
  dayPicker.addEventListener('change',()=>{if(!guard()){dayPicker.value=String(day);return;}day=Number(dayPicker.value);dirty=false;render();});
  for(const id of ['running-date','running-notes'])$(id).addEventListener('input',()=>{dirty=true;updateDraft();});
@@ -56,5 +66,8 @@ export function startRunning({players,flow,element:$,validate,ready=()=>true}){
   }catch(e){dirty=true;updateDraft();error(e);}
  });
  $('running-clear').addEventListener('click',()=>{try{if(!ready(picker.value))throw Error('Wait for Google Sheet to finish loading or saving.');const records=own();if(!records.length||!window.confirm(`Clear all ${records.length} saved Running workouts for ${picker.value}? Other workouts and players are kept.`))return;const ids=new Set(records.map(r=>r.id));dirty=false;flow.commit(flow.records().filter(r=>!ids.has(r.id)));render();$('running-announcement').textContent='Running entries cleared · Waiting for Google Sheet confirmation.';}catch(e){error(e);}});
- flow.subscribe(()=>{if(!dirty)render();});render();return {refresh(){if(!dirty)render();},hasDraft:()=>dirty};
+ function chooseProgram(next){if(!Object.hasOwn(RUNNING_PROGRAMS,next))return false;if(next!==program){if(!guard())return false;dirty=false;ota.reset();program=next;}if(globalThis.location)location.hash='running/'+program;render();return true;}
+ document.addEventListener?.('running-program-select',event=>{if(!chooseProgram(event.detail.program))event.preventDefault();});
+ flow.subscribe(()=>{if(!(dirty||ota.hasDraft()))render();});render();return {refresh(){const next=runningProgramFromHash(globalThis.location?.hash);if(next!==program&&!chooseProgram(next)){if(globalThis.location)location.hash='running/'+program;return;}if(!(dirty||ota.hasDraft()))render();},hasDraft:()=>dirty||ota.hasDraft()};
 }
+
