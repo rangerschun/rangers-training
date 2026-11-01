@@ -66,7 +66,7 @@ export function startRunning({players,flow,element:$,validate,ready=()=>true}){
   }catch(e){dirty=true;updateDraft();error(e);}
  });
  $('running-clear').addEventListener('click',()=>{try{if(!ready(picker.value))throw Error('Wait for Google Sheet to finish loading or saving.');const records=own();if(!records.length||!window.confirm(`Clear all ${records.length} saved Running workouts for ${picker.value}? Other workouts and players are kept.`))return;const ids=new Set(records.map(r=>r.id));dirty=false;flow.commit(flow.records().filter(r=>!ids.has(r.id)));render();$('running-announcement').textContent='Running entries cleared · Waiting for Google Sheet confirmation.';}catch(e){error(e);}});
- function chooseProgram(next){if(!Object.hasOwn(RUNNING_PROGRAMS,next))return false;if(next!==program){if(!guard())return false;dirty=false;ota.reset();program=next;}if(globalThis.location)location.hash='running/'+program;render();return true;}
+ function chooseProgram(next){if(!Object.hasOwn(RUNNING_PROGRAMS,next))return false;if(next===program)return true;if(next!==program){if(!guard())return false;dirty=false;ota.reset();program=next;}if(globalThis.location)location.hash='running/'+program;render();return true;}
  document.addEventListener?.('running-program-select',event=>{if(!chooseProgram(event.detail.program))event.preventDefault();});
  flow.subscribe(()=>{if(!(dirty||ota.hasDraft()))render();});render();return {refresh(){const next=runningProgramFromHash(globalThis.location?.hash);if(next!==program&&!chooseProgram(next)){if(globalThis.location)location.hash='running/'+program;return;}if(!(dirty||ota.hasDraft()))render();},hasDraft:()=>dirty||ota.hasDraft()};
 }
