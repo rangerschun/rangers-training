@@ -1,6 +1,28 @@
 import test from 'node:test';import assert from 'node:assert/strict';import vm from 'node:vm';import {readFileSync} from 'node:fs';
 import {attendanceDraft,validateAttendance,attendanceCounts,attendanceToday} from '../docs/attendance-core.mjs';
-import {startCoachAttendance} from '../docs/coach-attendance.mjs';import {Element} from './helpers/fake-element.mjs';
+import {startCoachAttendance} from '../docs/coach-attendance.mjs';class Element{
+  constructor(tag='div'){this.tagName=tag.toUpperCase();this.children=[];this.dataset={};this.style={setProperty:(key,value)=>{this.style[key]=value;}};this.listeners={};this.attributes={};this.checked=false;this.disabled=false;this.hidden=false;this.className='';this._value=undefined;this.captureListeners={};this.classList={contains:name=>this.className.split(' ').includes(name),toggle:(name,on)=>{const values=new Set(this.className.split(' ').filter(Boolean));if(on)values.add(name);else values.delete(name);this.className=[...values].join(' ');}};}
+  get value(){if(this.tagName==='SELECT')return this.children.find(n=>n.value===this._value)?.value??(this._value===undefined?this.children[0]?.value??'':'');return this._value??'';}
+  set value(value){this._value=String(value);}
+  get valueAsNumber(){return Number(this.value);}
+  get textContent(){return this._text??this.children.map(n=>n.textContent).join('');}
+  set textContent(value){this.children=[];this._text=String(value);}
+  append(...nodes){this._text=undefined;for(const n of nodes){n.parent=this;this.children.push(n);}}
+  replaceChildren(...nodes){this.children=[];this._text=undefined;if(this.tagName==='SELECT')this._value=undefined;this.append(...nodes);}
+  setAttribute(key,value){this.attributes[key]=value;}
+  addEventListener(type,callback,options){const map=options===true||options?.capture?this.captureListeners:this.listeners;(map[type]??=[]).push(callback);}
+  emit(type,target=this){const path=[];for(let n=target;n;n=n.parent)path.push(n);let stopped=false;const event={type,target,isTrusted:false,defaultPrevented:false,preventDefault(){this.defaultPrevented=true;},stopImmediatePropagation(){stopped=true;}};for(const n of [...path].reverse()){for(const fn of n.captureListeners?.[type]??[]){fn(event);if(stopped)return event;}}for(const n of path){for(const fn of n.listeners[type]??[]){fn(event);if(stopped)return event;}}return event;}
+  contains(node){return node===this||this.children.some(n=>n.contains(node));}
+  showModal(){this.open=true;}
+  close(){this.open=false;this.emit('close');}
+  querySelectorAll(selector){const matches=n=>selector.startsWith('.')?n.className.split(' ').includes(selector.slice(1)):selector==='[data-exercise]'?Boolean(n.dataset.exercise):n.dataset.exercise===selector.match(/data-exercise="([^"]+)"/)?.[1];return this.children.flatMap(n=>[...(matches(n)?[n]:[]),...n.querySelectorAll(selector)]);}
+  querySelector(selector){return this.querySelectorAll(selector)[0]??null;}
+  dispatchEvent(event){this.emit(event.type);return true;}
+  remove(){this.parent.children=this.parent.children.filter(n=>n!==this);}
+  focus(){}
+  get lastElementChild(){return this.children.at(-1);}
+}
+
 const roster=['Aidan','Ambrose','Marcus','Dominic','Demo'],players=['Aidan','Ambrose'];
 const record=(extra={})=>({...attendanceDraft(players,{id:'attendance-test-0001',date:'2026-11-01'}),marks:[{player:'Aidan',status:'present'},{player:'Ambrose',status:''}],...extra});
 function backend(){let rows=[],opened=[],auth=0,locked=false,revision=0;const sheet={getLastRow:()=>rows.length,getMaxRows:()=>1000,setFrozenRows(){},insertRowsAfter(){},getRange:(row,col,height,width)=>({getValues:()=>rows.slice(row-1,row-1+height).map(r=>r.slice(col-1,col-1+width)),setValues:values=>{for(let i=0;i<height;i++)rows[row-1+i]=[...values[i]];}})};let exists=false;const properties={getProperty:k=>k==='players'?JSON.stringify(roster):k==='coachSheetId'?'copied-sheet-fixture':null};const context=vm.createContext({console,Date,Map,Set,JSON,authenticateCoach_:code=>{auth++;if(code!=='synthetic-coach')throw Error('Coach access required.');return properties;},SpreadsheetApp:{openById:id=>{opened.push(id);return {getSheetByName:name=>exists?sheet:null,insertSheet:name=>{assert.equal(name,'Attendance');exists=true;return sheet;}};},flush(){}},LockService:{getScriptLock:()=>({waitLock:()=>{assert.equal(locked,false);locked=true;},releaseLock:()=>locked=false})},Utilities:{formatDate:()=> '2026-11-02',getUuid:()=> 'revision-'+(++revision)}});vm.runInContext(readFileSync(new URL('../backend/attendance.gs',import.meta.url),'utf8'),context);return {call:(name,payload)=>JSON.parse(context[name](JSON.stringify({code:'synthetic-coach',...payload}))),context,rows:()=>rows,opened:()=>opened,auth:()=>auth,locked:()=>locked};}
