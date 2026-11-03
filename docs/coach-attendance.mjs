@@ -1,0 +1,35 @@
+import {ATTENDANCE_STATUSES,ATTENDANCE_TYPES,attendanceToday,attendanceCounts,attendanceDraft,validateAttendance} from './attendance-core.mjs?v=20261102';
+export function startCoachAttendance({element:$,isCoach,request}){
+ const make=(tag,cls,text)=>{const node=document.createElement(tag);if(cls)node.className=cls;if(text!==undefined)node.textContent=text;return node;};
+ let players=[],sessions=[],draft=null,dirty=false,busy=false,loaded=false,generation=0,requestId=null;
+ const form=$('attendance-form'),fields=$('attendance-fields'),status=$('attendance-status'),save=$('attendance-save');
+ function guard(){return !dirty||window.confirm('Discard unsaved attendance changes?');}
+ function error(problem){$('attendance-error').hidden=false;$('attendance-error').textContent=problem.message||'Attendance could not be saved. Your draft is still on this page.';}
+ function read(){if(!draft)return null;return {...draft,session_date:$('attendance-date').value,event_type:$('attendance-type').value,event_name:$('attendance-name').value,notes:$('attendance-notes').value,marks:players.map(player=>({player,status:$('attendance-roster').querySelector(`[data-player="${player}"]`).value}))};}
+ function counts(){if(!draft)return;const c=attendanceCounts(draft.marks);$('attendance-counts').textContent=`${c.present} Present · ${c.late} Late · ${c.absent} Absent · ${c.excused} Excused · ${c.unmarked} Unmarked`;save.disabled=busy||!dirty||!draft.marks.some(m=>m.status);}
+ function controls(){fields.disabled=!loaded||busy||!isCoach();$('attendance-refresh').disabled=busy||!isCoach();$('attendance-new').disabled=busy||!loaded||!isCoach();$('attendance-history').querySelectorAll('button').forEach(b=>b.disabled=busy);save.disabled=busy||!dirty||!draft?.marks.some(m=>m.status);}
+ function history(){const box=$('attendance-history');box.replaceChildren();if(!sessions.length){box.append(make('p','field-help',loaded?'No attendance sessions saved yet.':'Sign in to Coach desk to load attendance.'));return;}for(const r of [...sessions].sort((a,b)=>b.session_date.localeCompare(a.session_date)||b.updated_at.localeCompare(a.updated_at))){const c=attendanceCounts(r.marks),row=make('article','attendance-history-row'),text=make('div'),open=make('button','secondary-button','Open / edit');open.type='button';open.setAttribute('aria-label',`Open attendance: ${r.session_date} ${r.event_name}`);text.append(make('strong','',`${r.session_date} · ${r.event_name}`),make('p','field-help',`${ATTENDANCE_TYPES[r.event_type]} · ${c.present+c.late}/${r.marks.length} attended · ${c.absent} absent · ${c.excused} excused · ${c.unmarked} unmarked`));open.addEventListener('click',()=>{if(busy||!isCoach()||!guard())return;draft=structuredClone(r);dirty=false;requestId=null;render();$('attendance-panel').scrollIntoView({behavior:'smooth',block:'start'});});row.append(text,open);box.append(row);}}
+ function render(){
+  $('attendance-error').hidden=true;$('attendance-mode').textContent=draft?.revision?'EDIT SAVED SESSION':'NEW SESSION';
+  if(draft){$('attendance-date').value=draft.session_date;$('attendance-date').max=attendanceToday();$('attendance-type').value=draft.event_type;$('attendance-name').value=draft.event_name;$('attendance-notes').value=draft.notes;}
+  const roster=$('attendance-roster');roster.replaceChildren();for(const player of players){const label=make('label','attendance-player'),name=make('strong','',player),select=make('select');select.dataset.player=player;select.setAttribute('aria-label',`${player} attendance`);for(const [value,text]of Object.entries(ATTENDANCE_STATUSES)){const option=make('option','',text);option.value=value;select.append(option);}select.value=draft?.marks.find(m=>m.player===player)?.status??'';label.append(name,select);roster.append(label);}
+  counts();history();controls();
+ }
+ function changed(){if(!loaded||busy)return;draft=read();dirty=true;requestId=null;$('attendance-error').hidden=true;status.textContent='Unsaved attendance changes.';counts();}
+ form.addEventListener('input',changed);form.addEventListener('change',changed);
+ $('attendance-all-present').addEventListener('click',()=>{if(!loaded||busy||!isCoach())return;draft=read();draft.marks=draft.marks.map(m=>({...m,status:'present'}));dirty=true;requestId=null;render();status.textContent='All players marked Present. Adjust any exceptions, then save.';});
+ $('attendance-new').addEventListener('click',()=>{if(!loaded||busy||!isCoach()||!guard())return;draft=attendanceDraft(players);dirty=false;requestId=null;render();status.textContent='New attendance session. Existing sessions are kept in history.';});
+ async function refresh(){
+  if(!isCoach()||busy||!guard())return;const token=++generation;busy=true;controls();status.textContent='Loading attendance from Google Sheet…';$('attendance-error').hidden=true;
+  try{const result=await request('getCoachAttendance',{});if(token!==generation||!isCoach())return;if(result?.source!=='google_sheet'||!Array.isArray(result.players)||!result.players.length||!Array.isArray(result.sessions))throw Error('Google Sheet returned unreadable attendance.');players=result.players;sessions=result.sessions;loaded=true;const old=draft?.revision&&sessions.find(r=>r.id===draft.id);draft=old?structuredClone(old):attendanceDraft(players);dirty=false;requestId=null;render();status.textContent='Attendance loaded from Google Sheet. '+sessions.length+' saved session'+(sessions.length===1?'':'s')+'.';}
+  catch(problem){if(token===generation)error(problem);}
+  finally{if(token===generation){busy=false;controls();}}
+ }
+ $('attendance-refresh').addEventListener('click',()=>void refresh());
+ form.addEventListener('submit',async event=>{
+  event.preventDefault();if(!isCoach()||busy||!loaded)return;const token=generation;try{draft=read();validateAttendance(draft,players);requestId??='attendance-save-'+crypto.randomUUID();busy=true;controls();$('attendance-error').hidden=true;status.textContent='Saving attendance to Google Sheet…';const id=requestId,result=await request('saveCoachAttendance',{record:draft,expected_revision:draft.revision??null,request_id:id});if(token!==generation||!isCoach())return;if(result?.source!=='google_sheet'||result.request_id!==id||result.record?.id!==draft.id||!result.record.revision)throw Error('Google Sheet did not confirm this attendance save. Keep this page open and try again.');validateAttendance(result.record,players);draft=structuredClone(result.record);sessions=[...sessions.filter(r=>r.id!==draft.id),draft];dirty=false;requestId=null;render();status.textContent='Saved in Google Sheet · '+draft.session_date+' · '+draft.event_name+'.';}
+  catch(problem){if(token===generation){dirty=true;error(problem);status.textContent='Not saved. Your attendance draft is still on this page.';}}
+  finally{if(token===generation){busy=false;controls();}}
+ });
+ render();return {refresh,hasDraft:()=>dirty,clear(){generation++;players=[];sessions=[];draft=null;dirty=busy=loaded=false;requestId=null;form.reset();status.textContent='Sign in to Coach desk to load attendance.';$('attendance-counts').textContent='';render();}};
+}
