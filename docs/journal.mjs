@@ -1,6 +1,6 @@
 import { validateOverSpeedSession } from './overspeed-progression.mjs?v=schedule-auto-refresh-20261025';
 import { validatePulseRecord } from './pulse.mjs?v=schedule-auto-refresh-20261025';
-import { validateBlastPcrSession, blastPcrJournalLabel, BLAST_SESSION_METRICS } from './blast-pcr.mjs?v=schedule-auto-refresh-20261025';
+import { validateBlastPcrSession, blastPcrJournalLabel, BLAST_SESSION_HISTORY_METRICS } from './blast-pcr.mjs?v=peak-hand-20261108';
 import { BLAST_METRICS, validateBlastRecord, validateWorkout, validateBaseballSession, summarizeThrows } from './engine.mjs?v=schedule-auto-refresh-20261025';
 import { validateBatSpeedSet, summarizeBatSpeeds } from './overspeed.mjs?v=schedule-auto-refresh-20261025';
 
@@ -30,9 +30,10 @@ export function journalChanges(kind,before,after,makeId,now){
 export function journalRow(event,received=''){
   const r=event.record,stats=event.kind==='baseball'?summarizeThrows(r.throws.filter(v=>v!==null)):null,speed=event.kind==='overspeed'?summarizeBatSpeeds(r.swings_mph):null;
   const json=JSON.stringify(r),throws=event.kind==='baseball'?r.throws:Array(8).fill(null);
-  return [event.event_id,received,event.kind,event.operation,r.id,r.player,r.session_date,event.kind==='blast_pcr'?blastPcrJournalLabel(r):event.kind==='pulse'?'Pulse daily summary':r.title??r.drill??r.context??r.drill_id??'',r.bat??r.device??r.bat_label??'',...BLAST_METRICS.map(m=>event.kind==='blast_pcr'?(BLAST_SESSION_METRICS.some(metric=>metric.key===m.key)?r[m.key]??null:null):m.key==='bat_speed_mph'&&speed?speed.mean_mph:r[m.key]??null),...throws,stats?.max??speed?.best_mph??null,stats?.averageTop5??null,stats?.count??null,r.distance_ft??null,r.duration_minutes??null,r.effort??'',r.notes??'',json.slice(0,40000),json.slice(40000,80000),json.slice(80000,120000)];
+  return [event.event_id,received,event.kind,event.operation,r.id,r.player,r.session_date,event.kind==='blast_pcr'?blastPcrJournalLabel(r):event.kind==='pulse'?'Pulse daily summary':r.title??r.drill??r.context??r.drill_id??'',r.bat??r.device??r.bat_label??'',...BLAST_METRICS.map(m=>event.kind==='blast_pcr'?(BLAST_SESSION_HISTORY_METRICS.some(metric=>metric.key===m.key)?r[m.key]??null:null):m.key==='bat_speed_mph'&&speed?speed.mean_mph:r[m.key]??null),...throws,stats?.max??speed?.best_mph??null,stats?.averageTop5??null,stats?.count??null,r.distance_ft??null,r.duration_minutes??null,r.effort??'',r.notes??'',json.slice(0,40000),json.slice(40000,80000),json.slice(80000,120000)];
 }
 export function journalToCsv(events){
   const cell=v=>'"'+String(typeof v==='string'&&/^\s*[=+@-]/.test(v)?"'"+v:v??'').replaceAll('"','""')+'"';
   return [ENTRY_HEADERS,...events.map(e=>journalRow(e,e.received_at??''))].map(row=>row.map(cell).join(',')).join('\r\n');
 }
+

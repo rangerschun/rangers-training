@@ -1986,10 +1986,12 @@ export const BLAST_PCR_METRICS = Object.freeze([
 ].map(Object.freeze));
 export const BLAST_PCR_TEAM_SCALE = Object.freeze({ id:'20_80', label:'20–80', min:20, max:80 });
 export const BLAST_SESSION_METRICS = Object.freeze([
-  {key:'bat_speed_mph',label:'Bat speed',unit:'mph',min:0,exclusiveMin:true},
-  {key:'attack_angle_deg',label:'Attack angle',unit:'°',min:-90,max:90},
-  {key:'time_to_contact_s',label:'Time to contact',unit:'s',min:0,exclusiveMin:true},
+  {key:'bat_speed_mph',label:'Bat Speed',unit:'mph',min:0,exclusiveMin:true},
+  {key:'peak_hand_speed_mph',label:'Peak Hand Speed',unit:'mph',min:0,exclusiveMin:true},
+  {key:'attack_angle_deg',label:'Attack Angle',unit:'°',min:-90,max:90},
 ].map(Object.freeze));
+// Earlier Time to Contact readings stay in history, exports and queued edits.
+export const BLAST_SESSION_HISTORY_METRICS=Object.freeze([...BLAST_SESSION_METRICS,Object.freeze({key:'time_to_contact_s',label:'Time to contact (earlier session)',unit:'s',min:0,exclusiveMin:true,legacy:true})]);
 // The earlier format is retained only for saved history and queued legacy events.
 export const BLAST_PCR_SCALES = Object.freeze([
   BLAST_PCR_TEAM_SCALE,
@@ -2005,10 +2007,10 @@ export function validateBlastPcrSession(record,players){
   if(!scale)throw new TypeError('This session needs a valid saved score scale.');
   for(const [key,max]of [['session_label',120],['level_of_play',120],['notes',500]])if(typeof record[key]!=='string'||record[key].length>max)throw new TypeError(`Keep ${key.replaceAll('_',' ')} within ${max} characters.`);
   for(const metric of BLAST_PCR_METRICS){const value=record[metric.key];if(value===null)continue;if(typeof value!=='number'||!Number.isFinite(value)||value<scale.min||value>scale.max)throw new TypeError(`${metric.label} score must be between ${scale.min} and ${scale.max}, or left blank.`);}
-  for(const metric of BLAST_SESSION_METRICS){const value=record[metric.key];if(value===null||value===undefined)continue;if(typeof value!=='number'||!Number.isFinite(value)||value<metric.min||(metric.exclusiveMin&&value===metric.min)||(metric.max!==undefined&&value>metric.max))throw new TypeError(`Check session ${metric.label.toLowerCase()} (${metric.unit}).`);}
+  for(const metric of BLAST_SESSION_HISTORY_METRICS){const value=record[metric.key];if(value===null||value===undefined)continue;if(typeof value!=='number'||!Number.isFinite(value)||value<metric.min||(metric.exclusiveMin&&value===metric.min)||(metric.max!==undefined&&value>metric.max))throw new TypeError(`Check session ${metric.label.toLowerCase()} (${metric.unit}).`);}
   if(record.drill!==undefined&&!['tee','front_toss','machine','live','other'].includes(record.drill))throw new TypeError('Choose a session setting; Air Swing is not available.');
   if(record.bat!==undefined&&(typeof record.bat!=='string'||record.bat.length>120))throw new TypeError('Keep bat details within 120 characters.');
-  if(![...BLAST_PCR_METRICS,...BLAST_SESSION_METRICS].some(metric=>typeof record[metric.key]==='number'))throw new TypeError('Enter at least one available session reading or PCR score before saving.');
+  if(![...BLAST_PCR_METRICS,...BLAST_SESSION_HISTORY_METRICS].some(metric=>typeof record[metric.key]==='number'))throw new TypeError('Enter at least one available session reading or PCR score before saving.');
   return true;
 }
 export function validateBlastPcrRecords(records,players){
@@ -2028,7 +2030,7 @@ export function blastPcrJournalLabel(record){
   return ['Blast session',...BLAST_PCR_METRICS.map(metric=>`${metric.letter} ${record[metric.key]??'—'}`),`Scale ${scale}`,record.session_label].filter(Boolean).join(' · ');
 }
 export function blastPcrRecordsToCsv(records){
-  const keys=['id','player','session_date','session_label','score_scale','level_of_play',...BLAST_PCR_METRICS.map(metric=>metric.key),'source','entry_scope','notes','created_at','updated_at','drill','bat',...BLAST_SESSION_METRICS.map(metric=>metric.key)];
+  const keys=['id','player','session_date','session_label','score_scale','level_of_play',...BLAST_PCR_METRICS.map(metric=>metric.key),'source','entry_scope','notes','created_at','updated_at','drill','bat',...BLAST_SESSION_HISTORY_METRICS.map(metric=>metric.key)];
   const cell=value=>'"'+String(typeof value==='string'&&/^\s*[=+@-]/.test(value)?"'"+value:value??'').replaceAll('"','""')+'"';
   return [keys,...records.map(record=>keys.map(key=>record[key]))].map(row=>row.map(cell).join(',')).join('\r\n');
 }
@@ -2065,9 +2067,9 @@ export function startBlastPcr({players,scope,element:$,download,onChange}){
     $('blast-pcr-latest-label').textContent=latest?`Latest session · ${latest.session_date} · ${scaleLabel(latest)} scale${latest.level_of_play?' · '+latest.level_of_play:''}${latest.session_label?' · '+latest.session_label:''}`:'Latest session · no scores saved yet';
     const readingSummary=$('blast-session-summary');readingSummary.replaceChildren();for(const metric of BLAST_SESSION_METRICS){const card=make('article');card.append(make('h3','',metric.label),make('strong','',score(latest,metric.key)),make('small','',metric.unit+' · session reading'));readingSummary.append(card);}
     const summary=$('blast-pcr-summary');summary.replaceChildren();for(const metric of BLAST_PCR_METRICS){const card=make('article');card.append(make('h3','',`${metric.letter} · ${metric.label}`),make('strong','',score(latest,metric.key)),make('small','',latest?`${scaleLabel(latest)} scale · copied score`:'No session score'));summary.append(card);}
-    const history=$('blast-pcr-history');history.replaceChildren();if(!all.length)history.append(make('p','workout-empty','Finish a session in Blast, then copy its bat speed, attack angle, time to contact and available PCR scores here.'));
+    const history=$('blast-pcr-history');history.replaceChildren();if(!all.length)history.append(make('p','workout-empty','Finish a session in Blast, then copy its bat speed, peak hand speed, attack angle and available PCR scores here.'));
     for(const record of all){const card=make('details','workout-record'),heading=make('summary'),text=make('div');text.append(make('span','workout-record-date',`${record.session_date} · ${scaleLabel(record)} SCALE`),make('strong','',BLAST_PCR_METRICS.map(metric=>`${metric.letter} ${score(record,metric.key)}`).join(' · ')),make('small','',[record.session_label,record.level_of_play?`Blast level: ${record.level_of_play}`:'Blast level not recorded'].filter(Boolean).join(' · ')));heading.append(text,make('span','workout-expand','+'));card.append(heading);
-      const body=make('div','workout-record-body'),list=make('dl','pulse-record-metrics');for(const metric of [...BLAST_SESSION_METRICS,...BLAST_PCR_METRICS]){const group=make('div');group.append(make('dt','',metric.label+(metric.unit?' · '+metric.unit:' score')),make('dd','',score(record,metric.key)));list.append(group);}body.append(list);if(record.drill||record.bat)body.append(make('p','',[record.drill?record.drill.replaceAll('_',' '):'',record.bat].filter(Boolean).join(' · ')));if(record.notes)body.append(make('p','workout-record-notes',record.notes));
+      const body=make('div','workout-record-body'),list=make('dl','pulse-record-metrics');for(const metric of [...BLAST_SESSION_HISTORY_METRICS.filter(metric=>!metric.legacy||record[metric.key]!=null),...BLAST_PCR_METRICS]){const group=make('div');group.append(make('dt','',metric.label+(metric.unit?' · '+metric.unit:' score')),make('dd','',score(record,metric.key)));list.append(group);}body.append(list);if(record.drill||record.bat)body.append(make('p','',[record.drill?record.drill.replaceAll('_',' '):'',record.bat].filter(Boolean).join(' · ')));if(record.notes)body.append(make('p','workout-record-notes',record.notes));
       const actions=make('div','workout-record-actions'),editButton=make('button','secondary-button','Edit session'),remove=make('button','delete-button','Delete session');editButton.type=remove.type='button';editButton.addEventListener('click',()=>edit(record));remove.addEventListener('click',()=>{if(!window.confirm(`Delete the PCR session from ${record.session_date} on this device?`))return;persist(records.filter(item=>item.id!==record.id));if(editing===record.id)resetDraft(true);render();$('blast-pcr-announcement').textContent=saved?'Session scores deletion waiting for Google Sheet confirmation.':'Removed from this page; export before closing.';});actions.append(editButton,remove);body.append(actions);card.append(body);history.append(card);
     }
   }
@@ -2076,7 +2078,8 @@ export function startBlastPcr({players,scope,element:$,download,onChange}){
   $('blast-pcr-form').addEventListener('submit',event=>{
     event.preventDefault();const previous=records.find(record=>record.id===editing),timestamp=new Date().toISOString();
     const record={id:editing??globalThis.crypto?.randomUUID?.()??`pcr-${Date.now()}-${Math.random().toString(36).slice(2)}`,player:player(),session_date:$('blast-pcr-date').value,score_scale:activeScale.id,level_of_play:$('blast-pcr-level').value.trim(),session_label:$('blast-pcr-label').value.trim(),notes:$('blast-pcr-notes').value.trim(),source:'blast_motion_manual',entry_scope:'session',summary_version:2,drill:$('blast-pcr-drill').value,bat:$('blast-pcr-bat').value,created_at:previous?.created_at??timestamp,updated_at:timestamp};
-    for(const metric of [...BLAST_PCR_METRICS,...BLAST_SESSION_METRICS]){const input=$('blast-pcr-'+metric.key);record[metric.key]=input.value.trim()===''?null:input.valueAsNumber;}
+        for(const metric of BLAST_SESSION_HISTORY_METRICS.filter(metric=>metric.legacy)){if(previous?.[metric.key]!==undefined)record[metric.key]=previous[metric.key];}
+for(const metric of [...BLAST_PCR_METRICS,...BLAST_SESSION_METRICS]){const input=$('blast-pcr-'+metric.key);record[metric.key]=input.value.trim()===''?null:input.valueAsNumber;}
     try{persist(upsertBlastPcrSession(records,record,players));}catch(error){$('blast-pcr-error').hidden=false;$('blast-pcr-error').textContent=error.message;return;}
     const wasEditing=Boolean(editing);resetDraft(true);render();$('blast-pcr-announcement').textContent=`${wasEditing?'Updated':'Saved'} Blast session for ${record.player}. ${saved?'Waiting for Google Sheet confirmation.':'Kept in this open page; export before closing.'}`;
   });
@@ -3119,7 +3122,7 @@ export function journalChanges(kind,before,after,makeId,now){
 export function journalRow(event,received=''){
   const r=event.record,stats=event.kind==='baseball'?summarizeThrows(r.throws.filter(v=>v!==null)):null,speed=event.kind==='overspeed'?summarizeBatSpeeds(r.swings_mph):null;
   const json=JSON.stringify(r),throws=event.kind==='baseball'?r.throws:Array(8).fill(null);
-  return [event.event_id,received,event.kind,event.operation,r.id,r.player,r.session_date,event.kind==='blast_pcr'?blastPcrJournalLabel(r):event.kind==='pulse'?'Pulse daily summary':r.title??r.drill??r.context??r.drill_id??'',r.bat??r.device??r.bat_label??'',...BLAST_METRICS.map(m=>event.kind==='blast_pcr'?(BLAST_SESSION_METRICS.some(metric=>metric.key===m.key)?r[m.key]??null:null):m.key==='bat_speed_mph'&&speed?speed.mean_mph:r[m.key]??null),...throws,stats?.max??speed?.best_mph??null,stats?.averageTop5??null,stats?.count??null,r.distance_ft??null,r.duration_minutes??null,r.effort??'',r.notes??'',json.slice(0,40000),json.slice(40000,80000),json.slice(80000,120000)];
+  return [event.event_id,received,event.kind,event.operation,r.id,r.player,r.session_date,event.kind==='blast_pcr'?blastPcrJournalLabel(r):event.kind==='pulse'?'Pulse daily summary':r.title??r.drill??r.context??r.drill_id??'',r.bat??r.device??r.bat_label??'',...BLAST_METRICS.map(m=>event.kind==='blast_pcr'?(BLAST_SESSION_HISTORY_METRICS.some(metric=>metric.key===m.key)?r[m.key]??null:null):m.key==='bat_speed_mph'&&speed?speed.mean_mph:r[m.key]??null),...throws,stats?.max??speed?.best_mph??null,stats?.averageTop5??null,stats?.count??null,r.distance_ft??null,r.duration_minutes??null,r.effort??'',r.notes??'',json.slice(0,40000),json.slice(40000,80000),json.slice(80000,120000)];
 }
 export function journalToCsv(events){
   const cell=v=>'"'+String(typeof v==='string'&&/^\s*[=+@-]/.test(v)?"'"+v:v??'').replaceAll('"','""')+'"';

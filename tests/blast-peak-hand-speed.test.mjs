@@ -1,0 +1,65 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+class Element{
+  constructor(tag='div'){this.tagName=tag.toUpperCase();this.children=[];this.dataset={};this.style={setProperty:(key,value)=>{this.style[key]=value;}};this.listeners={};this.attributes={};this.checked=false;this.disabled=false;this.hidden=false;this.className='';this._value=undefined;this.captureListeners={};this.classList={contains:name=>this.className.split(' ').includes(name),toggle:(name,on)=>{const values=new Set(this.className.split(' ').filter(Boolean));if(on)values.add(name);else values.delete(name);this.className=[...values].join(' ');}};}
+  get value(){if(this.tagName==='SELECT')return this.children.find(n=>n.value===this._value)?.value??(this._value===undefined?this.children[0]?.value??'':'');return this._value??'';}
+  set value(value){this._value=String(value);}
+  get valueAsNumber(){return Number(this.value);}
+  get textContent(){return this._text??this.children.map(n=>n.textContent).join('');}
+  set textContent(value){this.children=[];this._text=String(value);}
+  append(...nodes){this._text=undefined;for(const n of nodes){n.parent=this;this.children.push(n);}}
+  replaceChildren(...nodes){this.children=[];this._text=undefined;if(this.tagName==='SELECT')this._value=undefined;this.append(...nodes);}
+  setAttribute(key,value){this.attributes[key]=value;}
+  addEventListener(type,callback,options){const map=options===true||options?.capture?this.captureListeners:this.listeners;(map[type]??=[]).push(callback);}
+  emit(type,target=this){const path=[];for(let n=target;n;n=n.parent)path.push(n);let stopped=false;const event={type,target,isTrusted:false,defaultPrevented:false,preventDefault(){this.defaultPrevented=true;},stopImmediatePropagation(){stopped=true;}};for(const n of [...path].reverse()){for(const fn of n.captureListeners?.[type]??[]){fn(event);if(stopped)return event;}}for(const n of path){for(const fn of n.listeners[type]??[]){fn(event);if(stopped)return event;}}return event;}
+  contains(node){return node===this||this.children.some(n=>n.contains(node));}
+  showModal(){this.open=true;}
+  close(){this.open=false;this.emit('close');}
+  querySelectorAll(selector){const matches=n=>selector.startsWith('.')?n.className.split(' ').includes(selector.slice(1)):selector==='[data-exercise]'?Boolean(n.dataset.exercise):n.dataset.exercise===selector.match(/data-exercise="([^"]+)"/)?.[1];return this.children.flatMap(n=>[...(matches(n)?[n]:[]),...n.querySelectorAll(selector)]);}
+  querySelector(selector){return this.querySelectorAll(selector)[0]??null;}
+  dispatchEvent(event){this.emit(event.type);return true;}
+  remove(){this.parent.children=this.parent.children.filter(n=>n!==this);}
+  focus(){}
+  get lastElementChild(){return this.children.at(-1);}
+}
+
+let activeStorage=new Map();globalThis.localStorage={getItem:key=>activeStorage.get(key.replace(/^rangers-training:/,''))??null,setItem:(key,value)=>activeStorage.set(key.replace(/^rangers-training:/,''),value)};
+const {startBlastPcr}=await import('../docs/blast-pcr-ui.mjs');
+const players=['Player 01','Player 02'];
+function harness(storage=new Map([['rangers-blast-v1-test','existing swing data']])){
+ const html=readFileSync(new URL('../docs/index.html',import.meta.url),'utf8'),elements=new Map([...html.matchAll(/<([a-z0-9]+)\b[^>]*\bid="(blast-pcr-[^"]+|blast-session-[^"]+|blast-player)"/g)].map(([,tag,id])=>{const n=new Element(tag);n.id=id;return[id,n];})),created=[],changes=[],downloads=[];
+ for(const[,id,body]of html.matchAll(/<select\b[^>]*id="(blast-pcr-[^"]+)"[^>]*>([\s\S]*?)<\/select>/g))for(const[,value,text]of body.matchAll(/<option\b[^>]*value="([^"]*)"[^>]*>([^<]*)<\/option>/g)){const o=new Element('option');o.value=value.replaceAll('&quot;','"').replaceAll('&amp;','&');o.textContent=text;elements.get(id).append(o);}
+ for(const player of ['',...players]){const option=new Element('option');option.value=player;elements.get('blast-player').append(option);}
+ for(const[id,n]of elements)if(id.startsWith('blast-pcr-')&&id!=='blast-pcr-form'&&(['INPUT','TEXTAREA','SELECT'].includes(n.tagName)||['blast-pcr-metrics','blast-session-metrics'].includes(id)))n.parent=elements.get('blast-pcr-form');
+ let approve=true;globalThis.document={createElement:tag=>{const n=new Element(tag);created.push(n);return n;}};activeStorage=storage;globalThis.window={confirm:()=>approve};
+ const $=id=>{const element=elements.get(id)??created.find(n=>n.id===id);assert.ok(element,'Missing PCR element '+id);return element;};
+ const log=startBlastPcr({players,scope:'test',element:$,download:(...args)=>downloads.push(args),onChange:(before,after)=>changes.push({before,after})});
+ return {$,log,storage,changes,downloads,approve:value=>{approve=value;},player:value=>{$('blast-player').value=value;log.changePlayer();},input:(id,value)=>{$(id).value=value;$(id).emit('input');},change:(id,value)=>{$(id).value=value;$(id).emit('change');}};
+}
+test('session PCR UI saves exact20–80scores/nulls, edits one session, reloads history and isolates players without touching swings',()=>{
+ const h=harness();assert.equal(h.$('blast-pcr-save').disabled,true);h.player('Player 01');h.change('blast-pcr-date','2026-10-24');h.input('blast-pcr-plane_score','20');h.input('blast-pcr-connection_score','62.123456');h.input('blast-pcr-label','Cage session');h.$('blast-pcr-form').emit('submit');
+ const record=h.log.records()[0];assert.equal(record.plane_score,20);assert.equal(record.connection_score,62.123456);assert.equal(record.rotation_score,null);assert.equal(record.bat_speed_mph,null);assert.equal(h.log.hasDraft(),false);assert.equal(h.storage.get('rangers-blast-v1-test'),'existing swing data');assert.match(h.$('blast-pcr-latest-label').textContent,/20–80 scale/);
+ h.$('blast-pcr-history').querySelector('.secondary-button').emit('click');assert.equal(h.$('blast-pcr-plane_score').value,'20');assert.equal(h.$('blast-pcr-rotation_score').value,'');h.input('blast-pcr-rotation_score','75.25');h.$('blast-pcr-form').emit('submit');assert.equal(h.log.records().length,1);assert.equal(h.log.records()[0].id,record.id);assert.equal(h.log.records()[0].created_at,record.created_at);assert.equal(h.changes.length,2);
+ const reloaded=harness(h.storage);reloaded.player('Player 01');assert.equal(reloaded.log.records()[0].rotation_score,75.25);assert.match(reloaded.$('blast-pcr-history').textContent,/R 75\.25/);reloaded.$('blast-pcr-export').emit('click');assert.match(reloaded.downloads[0][1],/62\.123456/);
+ reloaded.player('Player 02');assert.equal(reloaded.$('blast-pcr-export').disabled,true);assert.doesNotMatch(reloaded.$('blast-pcr-history').textContent,/Cage session/);reloaded.player('Player 01');reloaded.$('blast-pcr-delete-player').emit('click');assert.equal(reloaded.log.records().length,0);assert.equal(reloaded.changes[0].before.length,1);assert.equal(reloaded.changes[0].after.length,0);
+});
+test('new session inputs stay20–80while legacy score history and edits retain their original scale',()=>{
+ const h=harness();h.player('Player 01');assert.equal(h.$('blast-pcr-scale-label').textContent,'20–80');assert.equal(h.$('blast-pcr-plane_score').min,'20');assert.equal(h.$('blast-pcr-plane_score').max,'80');h.input('blast-pcr-plane_score','19.9');h.$('blast-pcr-form').emit('submit');assert.match(h.$('blast-pcr-error').textContent,/between 20 and 80/);assert.equal(h.log.records().length,0);h.input('blast-pcr-plane_score','20');h.input('blast-pcr-rotation_score','80');h.$('blast-pcr-form').emit('submit');assert.equal(h.log.records()[0].score_scale,'20_80');
+ const legacy={id:'legacy-pcr',player:'Player 01',session_date:'2026-10-23',source:'blast_motion_manual',entry_scope:'session',score_scale:'0_100',plane_score:0,connection_score:100,rotation_score:null,session_label:'Earlier session',level_of_play:'',notes:'',created_at:'2026-10-23T18:00:00Z'},storage=new Map([['rangers-blast-pcr-v1-test',JSON.stringify({version:1,records:[legacy]})]]),old=harness(storage);old.player('Player 01');assert.match(old.$('blast-pcr-history').textContent,/0–100 SCALE/);old.$('blast-pcr-history').querySelector('.secondary-button').emit('click');assert.equal(old.$('blast-pcr-scale-label').textContent,'0–100');assert.equal(old.$('blast-pcr-plane_score').value,'0');old.input('blast-pcr-connection_score','90.25');old.$('blast-pcr-form').emit('submit');assert.equal(old.log.records()[0].id,legacy.id);assert.equal(old.log.records()[0].score_scale,'0_100');assert.equal(old.log.records()[0].plane_score,0);assert.equal(old.log.records()[0].connection_score,90.25);assert.equal(old.$('blast-pcr-scale-label').textContent,'20–80');assert.equal(old.$('blast-pcr-plane_score').min,'20');
+});
+test('unreadable session PCR storage is preserved while new session scores remain exportable in memory',()=>{
+ const storage=new Map([['rangers-blast-pcr-v1-test','corrupted prior content']]),h=harness(storage);h.player('Player 01');h.input('blast-pcr-plane_score','52.5');h.$('blast-pcr-form').emit('submit');assert.equal(h.log.records().length,1);assert.equal(storage.get('rangers-blast-pcr-v1-test'),'corrupted prior content');assert.match(h.$('blast-pcr-storage').textContent,/preserved/);assert.match(h.$('blast-pcr-announcement').textContent,/export before closing/);h.$('blast-pcr-export').emit('click');assert.match(h.downloads[0][1],/52\.5/);
+});
+
+test('players save bat speed, peak hand speed and attack angle once per session alongside optional PCR, without Air Swing',()=>{
+ const h=harness();h.player('Player 01');h.input('blast-pcr-bat_speed_mph','62.12345');h.input('blast-pcr-attack_angle_deg','-2.5');h.input('blast-pcr-peak_hand_speed_mph','23.173456');h.change('blast-pcr-drill','tee');h.change('blast-pcr-bat','BBCOR 32.5"');h.$('blast-pcr-form').emit('submit');const record=h.log.records()[0];assert.equal(record.bat_speed_mph,62.12345);assert.equal(record.attack_angle_deg,-2.5);assert.equal(record.peak_hand_speed_mph,23.173456);assert.equal(record.plane_score,null);assert.equal(record.entry_scope,'session');assert.equal(record.drill,'tee');assert.equal(record.bat,'BBCOR 32.5"');assert.equal(record.score_scale,'20_80');assert.ok(h.$('blast-pcr-drill').children.every(o=>o.value!=='air_swing'));assert.match(h.$('blast-pcr-history').textContent,/23\.173456/);h.$('blast-pcr-history').querySelector('.secondary-button').emit('click');assert.equal(h.$('blast-pcr-peak_hand_speed_mph').value,'23.173456');h.input('blast-pcr-plane_score','50');h.$('blast-pcr-form').emit('submit');assert.equal(h.log.records().length,1);assert.equal(h.log.records()[0].id,record.id);
+});
+
+test('clearing one player’s session entries preserves other players and legacy swing storage',()=>{
+ const h=harness();for(const name of players){h.player(name);h.input('blast-pcr-plane_score','50');h.$('blast-pcr-form').emit('submit');}const other=h.log.records().find(r=>r.player==='Player 02');h.log.clearPlayer('Player 01');assert.deepEqual(h.log.records().map(r=>r.id),[other.id]);assert.equal(h.storage.get('rangers-blast-v1-test'),'existing swing data');
+});
+
+test('editing earlier contact-time history preserves that value and adds hand speed as a separate mph reading',()=>{const old={id:'old-contact',player:'Player 01',session_date:'2026-10-23',source:'blast_motion_manual',entry_scope:'session',score_scale:'20_80',plane_score:null,connection_score:null,rotation_score:null,session_label:'Earlier summary',level_of_play:'',notes:'',time_to_contact_s:.173456,created_at:'2026-10-23T18:00:00Z'};const storage=new Map([['rangers-blast-pcr-v1-test',JSON.stringify({version:1,records:[old]})]]),h=harness(storage);h.player('Player 01');assert.match(h.$('blast-pcr-history').textContent,/Time to contact \(earlier session\)/);h.$('blast-pcr-history').querySelector('.secondary-button').emit('click');assert.equal(h.$('blast-pcr-peak_hand_speed_mph').value,'');h.input('blast-pcr-peak_hand_speed_mph','21.55');h.$('blast-pcr-form').emit('submit');assert.equal(h.log.records()[0].time_to_contact_s,.173456);assert.equal(h.log.records()[0].peak_hand_speed_mph,21.55);assert.equal(h.log.records()[0].id,old.id);});
+
+test('session field order and CSV distinguish mph hand speed from earlier seconds',async()=>{const core=await import('../docs/blast-pcr.mjs');assert.deepEqual(core.BLAST_SESSION_METRICS.map(m=>m.key),['bat_speed_mph','peak_hand_speed_mph','attack_angle_deg']);const r={id:'synthetic-hand-core',player:'Player 01',session_date:'2026-11-08',source:'blast_motion_manual',entry_scope:'session',score_scale:'20_80',plane_score:null,connection_score:null,rotation_score:null,session_label:'',level_of_play:'',notes:'',peak_hand_speed_mph:22.125,time_to_contact_s:.17};assert.equal(core.validateBlastPcrSession(r,players),true);assert.throws(()=>core.validateBlastPcrSession({...r,peak_hand_speed_mph:-1},players),/peak hand speed/);const csv=core.blastPcrRecordsToCsv([r]);assert.match(csv,/peak_hand_speed_mph/);assert.match(csv,/time_to_contact_s/);assert.match(csv,/22\.125/);assert.match(csv,/0\.17/);});
