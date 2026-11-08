@@ -6,10 +6,12 @@ export const BLAST_PCR_METRICS = Object.freeze([
 ].map(Object.freeze));
 export const BLAST_PCR_TEAM_SCALE = Object.freeze({ id:'20_80', label:'20–80', min:20, max:80 });
 export const BLAST_SESSION_METRICS = Object.freeze([
-  {key:'bat_speed_mph',label:'Bat speed',unit:'mph',min:0,exclusiveMin:true},
-  {key:'attack_angle_deg',label:'Attack angle',unit:'°',min:-90,max:90},
-  {key:'time_to_contact_s',label:'Time to contact',unit:'s',min:0,exclusiveMin:true},
+  {key:'bat_speed_mph',label:'Bat Speed',unit:'mph',min:0,exclusiveMin:true},
+  {key:'peak_hand_speed_mph',label:'Peak Hand Speed',unit:'mph',min:0,exclusiveMin:true},
+  {key:'attack_angle_deg',label:'Attack Angle',unit:'°',min:-90,max:90},
 ].map(Object.freeze));
+// Earlier Time to Contact readings stay in history, exports and queued edits.
+export const BLAST_SESSION_HISTORY_METRICS=Object.freeze([...BLAST_SESSION_METRICS,Object.freeze({key:'time_to_contact_s',label:'Time to contact (earlier session)',unit:'s',min:0,exclusiveMin:true,legacy:true})]);
 // The earlier format is retained only for saved history and queued legacy events.
 export const BLAST_PCR_SCALES = Object.freeze([
   BLAST_PCR_TEAM_SCALE,
@@ -25,10 +27,10 @@ export function validateBlastPcrSession(record,players){
   if(!scale)throw new TypeError('This session needs a valid saved score scale.');
   for(const [key,max]of [['session_label',120],['level_of_play',120],['notes',500]])if(typeof record[key]!=='string'||record[key].length>max)throw new TypeError(`Keep ${key.replaceAll('_',' ')} within ${max} characters.`);
   for(const metric of BLAST_PCR_METRICS){const value=record[metric.key];if(value===null)continue;if(typeof value!=='number'||!Number.isFinite(value)||value<scale.min||value>scale.max)throw new TypeError(`${metric.label} score must be between ${scale.min} and ${scale.max}, or left blank.`);}
-  for(const metric of BLAST_SESSION_METRICS){const value=record[metric.key];if(value===null||value===undefined)continue;if(typeof value!=='number'||!Number.isFinite(value)||value<metric.min||(metric.exclusiveMin&&value===metric.min)||(metric.max!==undefined&&value>metric.max))throw new TypeError(`Check session ${metric.label.toLowerCase()} (${metric.unit}).`);}
+  for(const metric of BLAST_SESSION_HISTORY_METRICS){const value=record[metric.key];if(value===null||value===undefined)continue;if(typeof value!=='number'||!Number.isFinite(value)||value<metric.min||(metric.exclusiveMin&&value===metric.min)||(metric.max!==undefined&&value>metric.max))throw new TypeError(`Check session ${metric.label.toLowerCase()} (${metric.unit}).`);}
   if(record.drill!==undefined&&!['tee','front_toss','machine','live','other'].includes(record.drill))throw new TypeError('Choose a session setting; Air Swing is not available.');
   if(record.bat!==undefined&&(typeof record.bat!=='string'||record.bat.length>120))throw new TypeError('Keep bat details within 120 characters.');
-  if(![...BLAST_PCR_METRICS,...BLAST_SESSION_METRICS].some(metric=>typeof record[metric.key]==='number'))throw new TypeError('Enter at least one available session reading or PCR score before saving.');
+  if(![...BLAST_PCR_METRICS,...BLAST_SESSION_HISTORY_METRICS].some(metric=>typeof record[metric.key]==='number'))throw new TypeError('Enter at least one available session reading or PCR score before saving.');
   return true;
 }
 export function validateBlastPcrRecords(records,players){
@@ -48,7 +50,8 @@ export function blastPcrJournalLabel(record){
   return ['Blast session',...BLAST_PCR_METRICS.map(metric=>`${metric.letter} ${record[metric.key]??'—'}`),`Scale ${scale}`,record.session_label].filter(Boolean).join(' · ');
 }
 export function blastPcrRecordsToCsv(records){
-  const keys=['id','player','session_date','session_label','score_scale','level_of_play',...BLAST_PCR_METRICS.map(metric=>metric.key),'source','entry_scope','notes','created_at','updated_at','drill','bat',...BLAST_SESSION_METRICS.map(metric=>metric.key)];
+  const keys=['id','player','session_date','session_label','score_scale','level_of_play',...BLAST_PCR_METRICS.map(metric=>metric.key),'source','entry_scope','notes','created_at','updated_at','drill','bat',...BLAST_SESSION_HISTORY_METRICS.map(metric=>metric.key)];
   const cell=value=>'"'+String(typeof value==='string'&&/^\s*[=+@-]/.test(value)?"'"+value:value??'').replaceAll('"','""')+'"';
   return [keys,...records.map(record=>keys.map(key=>record[key]))].map(row=>row.map(cell).join(',')).join('\r\n');
 }
+
