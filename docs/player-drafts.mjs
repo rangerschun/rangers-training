@@ -22,7 +22,8 @@ export function createPlayerDraftStore({storage,read,write,onState=()=>{},makeId
  }
  async function flush(player){
   if(working.has(player))return working.get(player);
-  const task=Promise.resolve().then(async()=>{try{
+    if(!own(player).length)return true;
+const task=Promise.resolve().then(async()=>{try{
    while(own(player).length){const batch=own(player).slice(0,30).map(e=>structuredClone(e));for(const e of batch)frozen.add(e.event_id);
     const result=checkDraftSnapshot(await write(player,batch),player),accepted=result.accepted;
     if(!Array.isArray(accepted)||accepted.length!==batch.length||new Set(accepted.map(a=>a.event_id)).size!==batch.length||accepted.some(a=>!batch.some(e=>e.event_id===a.event_id)||typeof a.received_at!=='string'))throw Error('Google Sheet did not confirm every unfinished field.');
