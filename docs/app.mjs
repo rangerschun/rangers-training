@@ -1,3 +1,4 @@
+import {startPlayerDraftAutosave} from './player-drafts-ui.mjs?v=20261108';
 import {mergeJournalEvents,startDeviceSyncSafety} from './device-sync-safety.mjs?v=20261108';
 import {startCoachAttendance} from './coach-attendance.mjs?v=20261102';
 import {startRunning} from './running-ui.mjs?v=running-inline-20261108';
@@ -9,7 +10,7 @@ import {startCoachPlayerSummary} from './coach-player-summary.mjs';
 import { TRAINING_BACKEND_CONFIG } from './training-config.mjs';
 import { trainingStorage } from './training-storage.mjs';
 import {defaultPlyoballBrand} from './plyoball-defaults.mjs?v=schedule-auto-refresh-20261025';
-import {startSheetSync} from './sheet-sync.mjs?v=vision-session-20261030';
+import {startSheetSync} from './sheet-sync.mjs?v=field-drafts-20261108';
 import {startGameChangerCoach} from './gamechanger-coach.mjs?v=schedule-auto-refresh-20261025';
 import {startTargetBaseline} from './target-baseline.mjs?v=schedule-auto-refresh-20261025';
 import {startVisionVideos} from './vision-videos.mjs?v=schedule-auto-refresh-20261025';
@@ -22,7 +23,7 @@ import {isAxeWorkout} from './axe-progress.mjs?v=rangers-organization-20261025';
 import {startPlayerAccess} from './player-access.mjs?v=team-calendar-20261029';
 import {startAxePrograms} from './axe-program-ui.mjs?v=rangers-organization-20261025';
 import {startWorkoutSchedule} from './workout-schedule-ui.mjs?v=rangers-organization-20261025';
-import { installGoogleBridge } from './google-bridge.mjs?v=personal-passwords-20261029';
+import { installGoogleBridge } from './google-bridge.mjs?v=field-drafts-20261108';
 import { startTabPlayers,TAB_PLAYER_IDS } from './tab-players.mjs?v=team-calendar-20261029';
 import { startThrowingCalendar } from './throwing-calendar-ui.mjs?v=throwing-save-close-20261025';
 import { isThrowingWorkout } from './workout-record-tools.mjs?v=schedule-auto-refresh-20261025';
@@ -36,7 +37,7 @@ import { startOverSpeed } from './overspeed-ui.mjs?v=rangers-organization-202610
 import { workoutActivity, workoutActivityCsv, workoutWeek } from './accountability.mjs?v=schedule-auto-refresh-20261025';
 import { startWorkoutAccountability } from './accountability-ui.mjs?v=compact-workouts-20261025';
 import { journalChanges, journalToCsv, validateJournalEvent } from './journal.mjs?v=peak-hand-20261108';
-import { startTeamJournal } from './journal-ui.mjs?v=multidevice-20261108';
+import { startTeamJournal } from './journal-ui.mjs?v=field-drafts-20261108';
 import { DRILLS, COLORS, getTargets, getDubsReferences, DUBS_BALLS, getMarvReferences, MARV_BALLS, summarizeThrows, BLAST_METRICS, validateBlastRecord, summarizeBlast, upsertBlastRecord, filterBlastRecords, blastDailyProgress, blastRecordsToCsv, WORKOUT_CATEGORIES, validateWorkout, upsertWorkout, summarizeWorkouts, workoutsToCsv, BASEBALL_CONTEXTS, BASEBALL_MOUND_DISTANCE_FT, BASEBALL_RADAR_DEVICE, validateBaseballSession, upsertBaseballSession, baseballSessionsToCsv } from './engine.mjs?v=schedule-auto-refresh-20261025';
 import { WORKOUT_LIBRARY } from './library.mjs?v=schedule-auto-refresh-20261025';
 import { isWorkoutVideoUrl } from './library-tools.mjs?v=compact-workouts-20261025';
@@ -65,7 +66,7 @@ for(const drill of DRILLS){const link=workoutDemoLink(WORKOUT_LIBRARY.drills[dri
 let overspeedLog = null;
 let workoutOverview = null;
 let teamJournal = null;
-let sheetSync=null,hydratingSheet=false,coachSheetCode='',calendarCoachAccess=()=>false;
+let fieldDrafts=null,sheetSync=null,hydratingSheet=false,coachSheetCode='',calendarCoachAccess=()=>false;
 let playerSettings=[];try{playerSettings=JSON.parse(trainingStorage.getItem('rangers-player-settings-v1')||'[]');}catch{}
 let tabPlayers = null;
 let axePrograms = null;
@@ -447,7 +448,7 @@ const visionVideos=startVisionVideos({element:$});
 for(const name of PLAYER_LABELS){const option=document.createElement('option');option.value=option.textContent=name;$('calendar-player').append(option);}
 const teamCalendar=startTeamSchedule({config:{remote:true},element:$,download:downloadFile,canRefresh:()=>calendarCoachAccess()||Boolean(sheetSync?.hasSession($('calendar-player').value)&&playerAccess.isVerified($('calendar-player').value)),readRemote:()=>calendarCoachAccess()?gameChangerRemote('getPlayerTeamCalendar',[{coach:true,player:$('calendar-player').value,code:coachSheetCode}]):sheetSync.readCalendar($('calendar-player').value)});
 $('calendar-player').addEventListener('change',()=>{teamCalendar.clear();if(calendarCoachAccess()||playerAccess.isVerified($('calendar-player').value))void teamCalendar.activate();});
-function gameChangerRemote(method,args=[]){const exactJson=['authenticatePlayer','getPlayerData','writePlayerJournal','getCoachPlayerData','resetPlayerPassword','getPlayerTeamCalendar','getConcentrationSummary'].includes(method);if(exactJson)args=args.map(value=>JSON.stringify(value));return new Promise((resolve,reject)=>{if(!globalThis.google?.script?.run){reject(Error('Shared coach connection is unavailable.'));return;}const timer=setTimeout(()=>reject(Error('The shared stats request was not confirmed. Try again.')),65000);globalThis.google.script.run.withSuccessHandler(result=>{clearTimeout(timer);try{resolve(exactJson&&typeof result==='string'?JSON.parse(result):result);}catch{reject(Error('Google Sheet returned unreadable records.'));}}).withFailureHandler(error=>{clearTimeout(timer);reject(Error(error?.message||'Shared stats could not be confirmed. Use your private coach code or coach account.'));})[method](...args);});}
+function gameChangerRemote(method,args=[]){const exactJson=['authenticatePlayer','getPlayerData','writePlayerJournal','getPlayerDrafts','writePlayerDrafts','getCoachPlayerData','resetPlayerPassword','getPlayerTeamCalendar','getConcentrationSummary'].includes(method);if(exactJson)args=args.map(value=>JSON.stringify(value));return new Promise((resolve,reject)=>{if(!globalThis.google?.script?.run){reject(Error('Shared coach connection is unavailable.'));return;}const timer=setTimeout(()=>reject(Error('The shared stats request was not confirmed. Try again.')),65000);globalThis.google.script.run.withSuccessHandler(result=>{clearTimeout(timer);try{resolve(exactJson&&typeof result==='string'?JSON.parse(result):result);}catch{reject(Error('Google Sheet returned unreadable records.'));}}).withFailureHandler(error=>{clearTimeout(timer);reject(Error(error?.message||'Shared stats could not be confirmed. Use your private coach code or coach account.'));})[method](...args);});}
 const gameChanger=startGameChanger({element:$,onPlayerAuthorized:player=>tabPlayers?.setCurrent(player),players:PLAYER_LABELS,hashes:PLAYER_JERSEY_HASHES,readRemote:()=>gameChangerRemote('getGameChangerStats'),authenticatePlayer:(player,password,newPassword)=>{const name=player.name.split(/\s+/)[0];if(!PLAYER_LABELS.includes(name)||!sheetSync)throw Error('This player is not connected to Google Sheet.');return sheetSync.login(name,password,newPassword);}});
 const concentrationGrid=startConcentrationGrid({element:$,players:PLAYER_LABELS,flow:workoutFlow,getDailyRecords:()=>[],readRemote:()=>sheetSync.readConcentrationSummary($('concentration-player').value)});
 
@@ -525,14 +526,15 @@ function hydratePlayerRecords(player,records){
 async function refreshCoachSheet(code){
  const [all,workouts,pulse]=await Promise.all([gameChangerRemote('getCoachPlayerData',[{code}]),gameChangerRemote('getCoachWorkouts',[{code}]),gameChangerRemote('getCoachPulse',[{code}])]);await sheetSync.applyCoach(all);coachSummary.applyShared(all);workoutOverview.applyShared(workouts,code);pulseLog.applyShared(pulse,code);
 }
-sheetSync=startSheetSync({call:gameChangerRemote,journal:teamJournal,apply:hydratePlayerRecords,validate:validateJournalEvent,onState:()=>playerAccess.refresh()});
+sheetSync=startSheetSync({call:gameChangerRemote,journal:teamJournal,apply:hydratePlayerRecords,validate:validateJournalEvent,onState:()=>{playerAccess.refresh();void fieldDrafts?.refresh();}});
+fieldDrafts=startPlayerDraftAutosave({sync:sheetSync,journal:teamJournal});
 function savePlayerSettings(player,patch){
  if(!player||!sheetSync?.ready(player))return;
  const before=playerSettings,prior=before.find(r=>r.player===player);playerSettings=[...before.filter(r=>r.player!==player),{id:'settings-'+player,player,velocity_baseline_mph:prior?.velocity_baseline_mph??null,baseline_source_key:prior?.baseline_source_key??null,throwing_start_date:prior?.throwing_start_date??null,...(prior?.plyoball_brand?{plyoball_brand:prior.plyoball_brand}:{}),...patch,updated_at:new Date().toISOString()}];try{trainingStorage.setItem('rangers-player-settings-v1',JSON.stringify(playerSettings));}catch{}teamJournal.record('player_settings',before,playerSettings);
 }
 $('throwing-plyo-brand').addEventListener('change',()=>savePlayerSettings($('throwing-player').value,{plyoball_brand:$('throwing-plyo-brand').value}));
 $('velocity').addEventListener('change',()=>{const value=targetBaseline.snapshot();savePlayerSettings($('player').value,{velocity_baseline_mph:value.manual?Number(value.value):null,baseline_source_key:value.source?.key??null});});
-startDeviceSyncSafety({sync:sheetSync,journal:teamJournal,player:()=>tabPlayers.current(),canRefresh:()=>['workouts','throwing','running','blast','tracker','targets'].includes(location.hash.slice(1).split('/')[0])&&!document.querySelector('form:focus-within')&&!workoutFlow.hasDraft()&&!throwingFlow.hasDraft()&&!runningProgram.hasDraft()&&!blastPcrLog.hasDraft()&&!blastDirty&&!blastEditingId&&!baseballDirty&&!baseballEditingId});
+startDeviceSyncSafety({sync:sheetSync,journal:teamJournal,player:()=>tabPlayers.current(),canRefresh:()=>['workouts','throwing','running','blast','tracker','targets'].includes(location.hash.slice(1).split('/')[0])&&!document.querySelector('form:focus-within')&&!workoutFlow.hasDraft()&&!throwingFlow.hasDraft()&&!runningProgram.hasDraft()&&!blastPcrLog.hasDraft()&&!blastDirty&&!blastEditingId&&!baseballDirty&&!baseballEditingId&&!fieldDrafts?.hasDraft()});
 route();
 
 
