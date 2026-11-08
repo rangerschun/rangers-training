@@ -1,4 +1,4 @@
-import {startOtaRunning} from './ota-running-ui.mjs?v=20261101';
+import {startOtaRunning} from './ota-running-ui.mjs?v=demos-20261108';
 import {RUNNING_PROGRAMS,otaBeginnerProgress,runningProgramFromHash} from './ota-running-program.mjs?v=20261101';
 import {RUNNING_DAYS,RUNNING_WEEKS,runningDay,runningSource,runningRecord,runningProgress,runningNotes,runningToday} from './running-program.mjs?v=20261101';
 export function startRunning({players,flow,element:$,validate,ready=()=>true}){
@@ -70,4 +70,5 @@ export function startRunning({players,flow,element:$,validate,ready=()=>true}){
  document.addEventListener?.('running-program-select',event=>{if(!chooseProgram(event.detail.program))event.preventDefault();});
  flow.subscribe(()=>{if(!(dirty||ota.hasDraft()))render();});render();return {refresh(){const next=runningProgramFromHash(globalThis.location?.hash);if(next!==program&&!chooseProgram(next)){if(globalThis.location)location.hash='running/'+program;return;}if(!(dirty||ota.hasDraft()))render();},hasDraft:()=>dirty||ota.hasDraft()};
 }
+
 
