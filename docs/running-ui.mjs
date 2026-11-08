@@ -1,4 +1,4 @@
-import {startOtaRunning} from './ota-running-ui.mjs?v=demos-20261108';
+import {startOtaRunning} from './ota-running-ui.mjs?v=inline-20261108';
 import {RUNNING_PROGRAMS,otaBeginnerProgress,runningProgramFromHash} from './ota-running-program.mjs?v=20261101';
 import {RUNNING_DAYS,RUNNING_WEEKS,runningDay,runningSource,runningRecord,runningProgress,runningNotes,runningToday} from './running-program.mjs?v=20261101';
 export function startRunning({players,flow,element:$,validate,ready=()=>true}){
@@ -46,9 +46,9 @@ export function startRunning({players,flow,element:$,validate,ready=()=>true}){
   $('running-variation').textContent=week>=4?'Weeks 4–6 include kneeling starts, hurdle and skater sprint-outs, and competition in the T Drill.':'Weeks 1–3 use the original start and hurdle variations. Exercise changes begin in Week 4.';
   $('running-date').value=r?.session_date??runningToday();$('running-date').max=runningToday();$('running-notes').value=runningNotes(r);
   const grid=$('running-exercises');grid.replaceChildren();
-  plan.rows.forEach((d,i)=>{const item=make('li','running-exercise'),label=make('label','running-check'),check=make('input');check.type='checkbox';check.id='running-check-'+i;check.checked=r?.exercises.find(e=>e.source_exercise_id===d.id)?.completed===true;check.setAttribute('aria-label',`Complete exercise ${i+1}: ${d.name}`);label.append(check,make('span','',`${i+1}. ${d.name}`));label.htmlFor=check.id;item.append(label,make('p','running-dose',d.dose),make('p','field-help','Rest '+d.rest));
-   if(d.url){const link=make('a','exercise-demo',d.related?'Related demo ↗':'Watch demo ↗');link.href=d.url;link.target='_blank';link.rel='noopener noreferrer';link.setAttribute('aria-label',`${d.related?'Watch related demonstration':'Watch demonstration'}: ${d.name}`);item.append(link);}
-   else item.append(make('p','field-help','No demo linked in the source program.'));
+  plan.rows.forEach((d,i)=>{const item=make('li','running-exercise'),label=make('label','running-check'),check=make('input');check.type='checkbox';check.id='running-check-'+i;check.checked=r?.exercises.find(e=>e.source_exercise_id===d.id)?.completed===true;check.setAttribute('aria-label',`Complete exercise ${i+1}: ${d.name}`);const name=make(d.url?'a':'span','running-inline-demo',`${i+1}. ${d.name}`);if(d.url){name.href=d.url;name.target='_blank';name.rel='noopener noreferrer';name.setAttribute('aria-label',(d.related?'Watch related demonstration: ':'Watch demonstration: ')+d.name);}label.append(check,name);label.htmlFor=check.id;item.append(label,make('p','running-dose',d.dose),make('p','field-help','Rest '+d.rest));
+   if(d.url&&d.related)item.append(make('p','field-help','Related demonstration · see the exercise note.'));
+   else if(!d.url)item.append(make('p','field-help','No demo linked in the source program.'));
    if(d.note)item.append(make('p','field-help',d.note));
    check.addEventListener('change',()=>{dirty=true;item.classList.toggle('running-done',check.checked);updateDraft();});item.classList.toggle('running-done',check.checked);grid.append(item);
   });
@@ -70,5 +70,6 @@ export function startRunning({players,flow,element:$,validate,ready=()=>true}){
  document.addEventListener?.('running-program-select',event=>{if(!chooseProgram(event.detail.program))event.preventDefault();});
  flow.subscribe(()=>{if(!(dirty||ota.hasDraft()))render();});render();return {refresh(){const next=runningProgramFromHash(globalThis.location?.hash);if(next!==program&&!chooseProgram(next)){if(globalThis.location)location.hash='running/'+program;return;}if(!(dirty||ota.hasDraft()))render();},hasDraft:()=>dirty||ota.hasDraft()};
 }
+
 
 

@@ -1,4 +1,4 @@
-import {renderOtaDemos} from './running-demo-links.mjs?v=20261108';
+import {renderOtaDemos,otaWorkoutDemos,renderOtaWorkoutDetails} from './running-demo-links.mjs?v=inline-20261108';
 import {RUNNING_PROGRAMS,OTA_BEGINNER_SESSIONS,otaBeginnerProgress,otaSession,otaSource,otaRecordProgram,otaWorkoutRecord,otaUserNotes,otaComplete} from './ota-running-program.mjs?v=20261101';
 import {runningToday} from './running-program.mjs?v=20261101';
 export function startOtaRunning({flow,players,element:$,validate,ready,onChooseProgram}){
@@ -33,7 +33,7 @@ export function startOtaRunning({flow,players,element:$,validate,ready,onChooseP
   $('running-ota-coverage').textContent=isBeginner?'All 48 sessions from the Chun-Running Beginner program are included. Check completion only after finishing all the listed work.':'Selected workout reference from Chun-Running. The full '+(program==='ota-bodyweight'?'Body Weight':'Advanced')+' schedule has not been imported in the source site.';
   $('running-ota-session-title').textContent=isBeginner?`Week ${week} / Day ${day} · ${session.title}`:session.title;
   $('running-ota-stage').textContent=isBeginner?`Phase ${session.phase} · ${session.stage}`:'Complete the reference workout listed below.';
-  $('running-ota-details').textContent=session.details;
+  renderOtaWorkoutDetails($('running-ota-details'),session.details,otaWorkoutDemos(program,week,day));
   renderOtaDemos({element:$,program,week,day,query:$('running-ota-demo-search').value});
   $('running-ota-date').value=r?.session_date??date;$('running-ota-date').max=runningToday();
   $('running-ota-notes').value=otaUserNotes(r);$('running-ota-complete').checked=Boolean(r&&otaComplete(r));$('running-ota-complete').disabled=Boolean(r);$('running-ota-undo').hidden=!r;
@@ -53,4 +53,5 @@ export function startOtaRunning({flow,players,element:$,validate,ready,onChooseP
  $('running-ota-clear').addEventListener('click',()=>{try{const records=own();if(!ready(player()))throw Error('Wait for Google Sheet to finish loading or saving.');if(!records.length||!window.confirm(`Clear all ${records.length} ${RUNNING_PROGRAMS[program]} entries for ${player()}?${program==='ota-beginner'?' Advanced will lock again.':''}`))return;const ids=new Set(records.map(r=>r.id));dirty=false;flow.commit(flow.records().filter(r=>!ids.has(r.id)));render();$('running-ota-announcement').textContent='Program entries cleared · Waiting for Google Sheet confirmation.';}catch(e){error(e);}});
  return {activate(next){if(next!==program){program=next;$('running-ota-demo-search').value='';week=1;day=1;date=runningToday();dirty=false;}render();},hasDraft:()=>dirty,reset(){dirty=false;week=1;day=1;date=runningToday();},refresh:render};
 }
+
 
