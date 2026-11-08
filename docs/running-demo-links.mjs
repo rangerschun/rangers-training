@@ -20,3 +20,19 @@ export function renderOtaDemos({element:$,program,week,day,query=''}){
  const results=filterOtaDemos(program,query);fill($('running-ota-demo-library'),results,true);
  $('running-ota-demo-count').textContent=results.length+' of '+(OTA_DEMO_CATALOG[program]?.length??0)+' demo links';
 }
+
+
+export function otaLinkedSegments(text,entries){
+ const normalize=s=>s.replace(/[’‘]/g,"'").replace(/[–—]/g,'-').toLowerCase();
+ const plain=normalize(text),matches=[];
+ for(const entry of [...entries].sort((a,b)=>b.label.length-a.label.length)){
+  const needle=normalize(entry.label);if(!needle)continue;let from=0,index;
+  while((index=plain.indexOf(needle,from))!==-1){const end=index+needle.length;from=end;if((index&&/[a-z0-9]/i.test(plain[index-1]))||/[a-z0-9]/i.test(plain[end]??''))continue;if(matches.some(m=>index<m.end&&end>m.start))continue;matches.push({start:index,end,url:entry.url});}
+ }
+ matches.sort((a,b)=>a.start-b.start);const result=[];let from=0;
+ for(const m of matches){if(m.start>from)result.push({text:text.slice(from,m.start)});result.push({text:text.slice(m.start,m.end),url:m.url});from=m.end;}
+ if(from<text.length)result.push({text:text.slice(from)});return result;
+}
+export function renderOtaWorkoutDetails(node,text,entries){
+ node.replaceChildren();for(const part of otaLinkedSegments(text,entries)){const span=document.createElement(part.url?'a':'span');span.textContent=part.text;if(part.url){span.href=part.url;span.target='_blank';span.rel='noopener noreferrer';span.className='running-inline-demo';span.setAttribute('aria-label','Watch demonstration: '+part.text);}node.append(span);}
+}

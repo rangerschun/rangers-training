@@ -1,5 +1,6 @@
+import {mergeJournalEvents,startDeviceSyncSafety} from './device-sync-safety.mjs?v=20261108';
 import {startCoachAttendance} from './coach-attendance.mjs?v=20261102';
-import {startRunning} from './running-ui.mjs?v=running-demos-20261108';
+import {startRunning} from './running-ui.mjs?v=running-inline-20261108';
 import {isTeamAveragePlayer} from './team-averages.mjs';
 import {startProVelocity} from './provelocity-ui.mjs';
 import {startTeamSchedule} from './team-schedule-ui.mjs?v=calendar-list-columns-20261029';
@@ -35,7 +36,7 @@ import { startOverSpeed } from './overspeed-ui.mjs?v=rangers-organization-202610
 import { workoutActivity, workoutActivityCsv, workoutWeek } from './accountability.mjs?v=schedule-auto-refresh-20261025';
 import { startWorkoutAccountability } from './accountability-ui.mjs?v=compact-workouts-20261025';
 import { journalChanges, journalToCsv, validateJournalEvent } from './journal.mjs?v=peak-hand-20261108';
-import { startTeamJournal } from './journal-ui.mjs?v=schedule-auto-refresh-20261025';
+import { startTeamJournal } from './journal-ui.mjs?v=multidevice-20261108';
 import { DRILLS, COLORS, getTargets, getDubsReferences, DUBS_BALLS, getMarvReferences, MARV_BALLS, summarizeThrows, BLAST_METRICS, validateBlastRecord, summarizeBlast, upsertBlastRecord, filterBlastRecords, blastDailyProgress, blastRecordsToCsv, WORKOUT_CATEGORIES, validateWorkout, upsertWorkout, summarizeWorkouts, workoutsToCsv, BASEBALL_CONTEXTS, BASEBALL_MOUND_DISTANCE_FT, BASEBALL_RADAR_DEVICE, validateBaseballSession, upsertBaseballSession, baseballSessionsToCsv } from './engine.mjs?v=schedule-auto-refresh-20261025';
 import { WORKOUT_LIBRARY } from './library.mjs?v=schedule-auto-refresh-20261025';
 import { isWorkoutVideoUrl } from './library-tools.mjs?v=compact-workouts-20261025';
@@ -531,7 +532,7 @@ function savePlayerSettings(player,patch){
 }
 $('throwing-plyo-brand').addEventListener('change',()=>savePlayerSettings($('throwing-player').value,{plyoball_brand:$('throwing-plyo-brand').value}));
 $('velocity').addEventListener('change',()=>{const value=targetBaseline.snapshot();savePlayerSettings($('player').value,{velocity_baseline_mph:value.manual?Number(value.value):null,baseline_source_key:value.source?.key??null});});
-window.addEventListener('online',()=>{const name=tabPlayers.current();if(name&&sheetSync.hasSession(name))void sheetSync.refresh(name).catch(()=>{});});
+startDeviceSyncSafety({sync:sheetSync,journal:teamJournal,player:()=>tabPlayers.current(),canRefresh:()=>['workouts','throwing','running','blast','tracker','targets'].includes(location.hash.slice(1).split('/')[0])&&!document.querySelector('form:focus-within')&&!workoutFlow.hasDraft()&&!throwingFlow.hasDraft()&&!runningProgram.hasDraft()&&!blastPcrLog.hasDraft()&&!blastDirty&&!blastEditingId&&!baseballDirty&&!baseballEditingId});
 route();
 
 
