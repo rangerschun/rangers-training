@@ -1,8 +1,11 @@
+import {renderOtaDemos} from './running-demo-links.mjs?v=20261108';
 import {RUNNING_PROGRAMS,OTA_BEGINNER_SESSIONS,otaBeginnerProgress,otaSession,otaSource,otaRecordProgram,otaWorkoutRecord,otaUserNotes,otaComplete} from './ota-running-program.mjs?v=20261101';
 import {runningToday} from './running-program.mjs?v=20261101';
 export function startOtaRunning({flow,players,element:$,validate,ready,onChooseProgram}){
  const make=(tag,cls,text)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(text!==undefined)e.textContent=text;return e;};
  let program='ota-beginner',week=1,day=1,date=runningToday(),dirty=false;
+ $('running-ota-demo-search').addEventListener('keydown',event=>{if(event.key==='Enter')event.preventDefault();});
+ $('running-ota-demo-search').addEventListener('input',()=>renderOtaDemos({element:$,program,week,day,query:$('running-ota-demo-search').value}));
  const player=()=>$('running-player').value;
  const own=()=>flow.records().filter(r=>r.player===player()&&otaRecordProgram(r)===program);
  const current=()=>own().find(r=>r.source_template_id===otaSource(program,week,day)&&(program==='ota-beginner'||r.session_date===date));
@@ -31,6 +34,7 @@ export function startOtaRunning({flow,players,element:$,validate,ready,onChooseP
   $('running-ota-session-title').textContent=isBeginner?`Week ${week} / Day ${day} · ${session.title}`:session.title;
   $('running-ota-stage').textContent=isBeginner?`Phase ${session.phase} · ${session.stage}`:'Complete the reference workout listed below.';
   $('running-ota-details').textContent=session.details;
+  renderOtaDemos({element:$,program,week,day,query:$('running-ota-demo-search').value});
   $('running-ota-date').value=r?.session_date??date;$('running-ota-date').max=runningToday();
   $('running-ota-notes').value=otaUserNotes(r);$('running-ota-complete').checked=Boolean(r&&otaComplete(r));$('running-ota-complete').disabled=Boolean(r);$('running-ota-undo').hidden=!r;
   dirty=false;updateDraft();renderHistory();
@@ -47,5 +51,6 @@ export function startOtaRunning({flow,players,element:$,validate,ready,onChooseP
  }catch(e){dirty=true;updateDraft();error(e);}});
  $('running-ota-undo').addEventListener('click',()=>{try{const r=current();if(!ready(player()))throw Error('Wait for Google Sheet to finish loading or saving.');if(!r||!window.confirm('Undo this saved session completion?'+(program==='ota-beginner'?' Advanced will lock again until all 48 Beginner sessions are complete.':'')))return;dirty=false;flow.commit(flow.records().filter(item=>item.id!==r.id));render();$('running-ota-announcement').textContent='Completion removed · Waiting for Google Sheet confirmation.';}catch(e){error(e);}});
  $('running-ota-clear').addEventListener('click',()=>{try{const records=own();if(!ready(player()))throw Error('Wait for Google Sheet to finish loading or saving.');if(!records.length||!window.confirm(`Clear all ${records.length} ${RUNNING_PROGRAMS[program]} entries for ${player()}?${program==='ota-beginner'?' Advanced will lock again.':''}`))return;const ids=new Set(records.map(r=>r.id));dirty=false;flow.commit(flow.records().filter(r=>!ids.has(r.id)));render();$('running-ota-announcement').textContent='Program entries cleared · Waiting for Google Sheet confirmation.';}catch(e){error(e);}});
- return {activate(next){if(next!==program){program=next;week=1;day=1;date=runningToday();dirty=false;}render();},hasDraft:()=>dirty,reset(){dirty=false;week=1;day=1;date=runningToday();},refresh:render};
+ return {activate(next){if(next!==program){program=next;$('running-ota-demo-search').value='';week=1;day=1;date=runningToday();dirty=false;}render();},hasDraft:()=>dirty,reset(){dirty=false;week=1;day=1;date=runningToday();},refresh:render};
 }
+

@@ -51,7 +51,7 @@
  .hitting-programs>.nav-link{font-size:13px;min-height:44px;gap:12px;padding:10px 12px}
 }
 </style>
-<link rel="stylesheet" href="./running.css?v=running-four-20261101">
+<link rel="stylesheet" href="./running.css?v=demos-20261108">
 <link rel="stylesheet" href="./attendance.css?v=20261102">
 </head>
 <body>
@@ -130,6 +130,8 @@
           <p id="running-ota-coverage" class="coverage-note"></p>
           <div class="running-selectors"><label id="running-ota-week-label" for="running-ota-week">Week<select id="running-ota-week"></select></label><label id="running-ota-day-label" for="running-ota-day">Training day<select id="running-ota-day"></select></label><label for="running-ota-date">Workout date<input id="running-ota-date" type="date" required></label></div>
           <h3 id="running-ota-session-title"></h3><p id="running-ota-stage" class="field-help"></p><pre id="running-ota-details" class="running-ota-details"></pre>
+          <section class="running-demos" aria-labelledby="running-ota-demo-title"><h3 id="running-ota-demo-title">Workout video demos</h3><p class="field-help">Exercise links from your OTA program PDFs · open in a new tab.</p><ul id="running-ota-demo-links" class="running-demo-links"></ul><p id="running-ota-demo-empty" class="field-help" hidden>No demo hyperlink is included for this selected workout. Browse the program library below.</p>
+          <details class="running-demo-browser"><summary>Program video demo library</summary><label for="running-ota-demo-search">Find an exercise<input id="running-ota-demo-search" type="search" placeholder="Search exercise names" autocomplete="off"></label><p id="running-ota-demo-count" class="field-help" role="status"></p><ul id="running-ota-demo-library" class="running-demo-links"></ul></details></section>
           <label class="running-check running-ota-check" for="running-ota-complete"><input id="running-ota-complete" type="checkbox" required><span>I completed all the listed work for this session.</span></label>
           <label class="running-notes" for="running-ota-notes">Day notes (optional)<textarea id="running-ota-notes" rows="3" maxlength="400"></textarea></label>
           <p id="running-ota-error" class="form-error" role="alert" hidden></p><div class="running-actions"><button id="running-ota-save" type="submit" class="primary-button">Save completed session</button><button id="running-ota-undo" type="button" class="secondary-button" hidden>Undo completion</button></div>
@@ -502,11 +504,12 @@
 <dialog id="method-dialog" aria-labelledby="method-title"><div class="dialog-heading"><span class="eyebrow">KNOW THE SOURCE</span><button class="close-dialog" type="button" aria-label="Close data information">×</button></div><h2 id="method-title">A reference, with the<br>details kept intact.</h2><div class="method-points"><p><strong>Observed · whole mph</strong>Inputs from 70 through 86 mph show the exact displayed values transcribed from your 17 supplied calculator screenshots.</p><p><strong>Interpolated · decimal mph</strong>Within that range, decimal inputs use a straight-line estimate between neighboring screenshots, rounded to one decimal. This is an estimate, not the original Driveline formula.</p><p><strong>Exact source coverage: 70–86 mph</strong>The previous 80–86 mph projections have been replaced by screenshot observations. Inputs outside this range receive no targets. The original calculator formula has not been reconstructed.</p><p><strong>Colors and blanks matter</strong>Every original ball color, drill label and blank is retained in Driveline view. The separate DUBS 150 g projections do not replace any screenshot observation.</p><p><strong>Equipment stays specific</strong>These are Driveline reference observations. DUBS view copies Driveline references for 100, 225, 350, 450, and 1,000 g nominal matches. These are not validated DUBS output targets. Your supplied chart identifies orange as 350 g. The dark green DUBS 150 g row has four mass-interpolated projections: 60% of the gray 100 g reference plus 40% of the red 225 g reference. Roll-Ins are not projected. No yellow 150 g source readings or measured DUBS readings validate these projections.</p></div><button class="primary-button close-dialog" type="button">Back to the targets <span>→</span></button></dialog>
 <noscript><div class="noscript">Enable JavaScript to calculate targets. Blast entry requires JavaScript; PlyoCare throw entry remains on hold.</div></noscript>
 <script type="module" src="./login-connection.mjs?v=attendance-20261102"></script>
-<script type="module" src="./app-provelocity-b79892551b14.mjs?v=team-roster-20261031&amp;running=20261101?v=vision-session-20261030&amp;runningmenu=20261101&amp;attendance=20261102&amp;blasthand=20261108"></script>
+<script type="module" src="./app-provelocity-b79892551b14.mjs?v=team-roster-20261031&amp;running=20261101?v=vision-session-20261030&amp;runningmenu=20261101&amp;attendance=20261102&amp;blasthand=20261108&amp;runningdemos=20261108"></script>
 <script type="module" src="./hitting-navigation.mjs?v=20261031"></script>
 <script type="module" src="./throwing-navigation.mjs?v=20261031"></script>
 <script type="module" src="./running-navigation.mjs?v=20261101"></script>
 </body></html>
+
 
 
 

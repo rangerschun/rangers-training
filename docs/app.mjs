@@ -1,5 +1,5 @@
 import {startCoachAttendance} from './coach-attendance.mjs?v=20261102';
-import {startRunning} from './running-ui.mjs?v=running-four-20261101';
+import {startRunning} from './running-ui.mjs?v=running-demos-20261108';
 import {isTeamAveragePlayer} from './team-averages.mjs';
 import {startProVelocity} from './provelocity-ui.mjs';
 import {startTeamSchedule} from './team-schedule-ui.mjs?v=calendar-list-columns-20261029';
