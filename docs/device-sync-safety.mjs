@@ -10,7 +10,13 @@ export function startDeviceSyncSafety({sync,journal,player,canRefresh=()=>false,
  let busy=false,lastRefresh=0;
  async function refresh(){const name=player();if(busy||doc.hidden||win.navigator?.onLine===false||!name||!sync.hasSession(name)||sync.status(name).conflict||!canRefresh())return false;
   const status=sync.status(name);if(!status.ready&&/expired|password|sign in again/i.test(status.message??''))return false;
-  if(Date.now()-lastRefresh<5000)return false;busy=true;lastRefresh=Date.now();try{await sync.refresh(name);return true;}catch{return false;}finally{busy=false;}
+  if(Date.now()-lastRefresh<5000)return false;busy=true;lastRefresh=Date.now();try{
+   if(!status.ready||journal.pendingAll().some(event=>event.player===name)){
+    await sync.refresh(name);
+    return true;
+   }
+   return await sync.refreshInBackground(name,()=>!doc.hidden&&player()===name&&canRefresh());
+  }catch{return false;}finally{busy=false;}
  }
  function beforeUnload(event){if(!journal.pendingAll().length)return;event.preventDefault();event.returnValue='';}
  const visible=()=>{if(!doc.hidden)void refresh();};
@@ -18,3 +24,4 @@ export function startDeviceSyncSafety({sync,journal,player,canRefresh=()=>false,
  const timer=win.setInterval(()=>void refresh(),intervalMs);
  return {refresh,destroy(){win.clearInterval(timer);win.removeEventListener('beforeunload',beforeUnload);win.removeEventListener('focus',refresh);win.removeEventListener('online',refresh);doc.removeEventListener('visibilitychange',visible);}};
 }
+

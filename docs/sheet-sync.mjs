@@ -35,12 +35,26 @@ export function startSheetSync({call,journal,apply,validate,onState=()=>{}}){
   return run(player,async()=>{set(player,false,'Loading your records from Google Sheet…');const auth=await authenticateWithPersonalPassword(call,player,password,newPassword);if(auth?.player!==player||typeof auth.token!=='string')throw Error('Player access was not confirmed by Google Sheet.');sessions.set(player,auth.token);try{await load(player);await drain(player);}catch(error){if(auth.password_changed)throw Error('Your password was changed. Sign in again using your new password. '+error.message);throw error;}return true;});
  }
  function refresh(player){if(!sessions.has(player))return Promise.reject(Error('Enter your password again.'));return run(player,async()=>{set(player,false,'Refreshing your records from Google Sheet…');await load(player);await drain(player);return true;});}
+ // Background reads leave the signed-in screen available and discard stale responses.
+ async function refreshInBackground(player,canApply){
+  const token=sessions.get(player),previous=snapshots.get(player);
+  if(!token||working.has(player)||!status(player).ready||journal.pending(player).length||!canApply())return false;
+  const snapshot=checkSheetSnapshot(await call('getPlayerData',[{player,token}]),player,validate);
+  if(sessions.get(player)!==token||snapshots.get(player)!==previous||working.has(player)||!status(player).ready||journal.pending(player).length||!canApply())return false;
+  if(previous&&JSON.stringify(previous.records)===JSON.stringify(snapshot.records)){
+   snapshots.set(player,snapshot);
+  }else{
+   hydrate(snapshot);
+  }
+  return true;
+ }
  function changed(){
   if(applying)return;
   for(const player of sessions.keys())if(journal.pending(player).length)set(player,false,'Saving to Google Sheet…');
   clearTimeout(timer);timer=setTimeout(()=>{for(const player of sessions.keys())if(journal.pending(player).length)void run(player,()=>drain(player)).catch(()=>{});},0);
  }
  async function review(player,confirm){return run(player,async()=>{const snapshot=await load(player),waiting=journal.pending(player),items=waiting.map(e=>({type:e.kind,action:e.operation,date:e.record.session_date??'',entry:e.record.title??e.record.context??e.record.drill_id??e.record.id,waiting:e.record,saved:snapshot.records[e.kind].find(r=>r.id===e.record.id)??null}));if(!confirm('Review waiting changes for '+player+'\n\n'+JSON.stringify(items,null,2).slice(0,6000)+'\n\nUse this device’s waiting changes instead of the current Google Sheet versions?')){set(player,false,'Waiting changes preserved. Review them before replacing the Google Sheet versions.',{conflict:true});return false;}journal.rebase(player,snapshot.revisions);await drain(player);return true;});}
- return {async readDrafts(player){if(!sessions.has(player))throw Error('Sign in to load unfinished drafts.');return call('getPlayerDrafts',[{player,token:sessions.get(player)}]);},async saveDrafts(player,changes){if(!sessions.has(player))throw Error('Sign in to save unfinished drafts.');return call('writePlayerDrafts',[{player,token:sessions.get(player),changes}]);},login,refresh,changed,status,review,async readConcentrationSummary(player){const token=sessions.get(player);if(!token)throw Error('Sign in to load the team average.');return call('getConcentrationSummary',[{player,token}]);},async readCalendar(player){const token=sessions.get(player);if(!token)throw Error('Sign in to view the team calendar.');return call('getPlayerTeamCalendar',[{player,token}]);},ready:player=>status(player).ready,applying:()=>applying,revision:(player,kind,id)=>snapshots.get(player)?.revisions[kind+'|'+id]??null,async applyCoach(result){if(result?.source!=='google_sheet'||!Array.isArray(result.snapshots))throw Error('Coach Google Sheet records could not be verified.');for(const snapshot of result.snapshots)checkSheetSnapshot(snapshot,snapshot.player,validate);for(const snapshot of result.snapshots)hydrate(snapshot);},hasSession:player=>sessions.has(player)};
+ return {async readDrafts(player){if(!sessions.has(player))throw Error('Sign in to load unfinished drafts.');return call('getPlayerDrafts',[{player,token:sessions.get(player)}]);},async saveDrafts(player,changes){if(!sessions.has(player))throw Error('Sign in to save unfinished drafts.');return call('writePlayerDrafts',[{player,token:sessions.get(player),changes}]);},login,refresh,refreshInBackground,changed,status,review,async readConcentrationSummary(player){const token=sessions.get(player);if(!token)throw Error('Sign in to load the team average.');return call('getConcentrationSummary',[{player,token}]);},async readCalendar(player){const token=sessions.get(player);if(!token)throw Error('Sign in to view the team calendar.');return call('getPlayerTeamCalendar',[{player,token}]);},ready:player=>status(player).ready,applying:()=>applying,revision:(player,kind,id)=>snapshots.get(player)?.revisions[kind+'|'+id]??null,async applyCoach(result){if(result?.source!=='google_sheet'||!Array.isArray(result.snapshots))throw Error('Coach Google Sheet records could not be verified.');for(const snapshot of result.snapshots)checkSheetSnapshot(snapshot,snapshot.player,validate);for(const snapshot of result.snapshots)hydrate(snapshot);},hasSession:player=>sessions.has(player)};
 }
+
 
