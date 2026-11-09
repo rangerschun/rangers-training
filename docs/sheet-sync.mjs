@@ -20,7 +20,7 @@ export function startSheetSync({call,journal,apply,validate,onState=()=>{}}){
  async function drain(player){
   while(journal.pending(player).length){
    const batch=journal.pending(player).slice(0,5),expected_revisions={};for(const event of batch){const key=event.kind+'|'+event.record.id;if(!Object.hasOwn(expected_revisions,key))expected_revisions[key]=event.base_revision??null;}
-   set(player,false,`Saving ${journal.pending(player).length} waiting change(s) to Google Sheet…`);
+   set(player,false,`Saving ${journal.pending(player).length} waiting change(s) to Google Sheet…`,{saving:true});
    const result=await call('writePlayerJournal',[{player,token:sessions.get(player),events:batch.map(({received_at,base_revision,...event})=>event),expected_revisions}]);
    if(!result||!Array.isArray(result.accepted)||result.accepted.length!==batch.length||new Set(result.accepted.map(a=>a.event_id)).size!==batch.length||result.accepted.some(a=>!batch.some(e=>e.event_id===a.event_id)||typeof a.received_at!=='string'))throw Error('Google Sheet did not confirm every change. Your entries remain waiting.');
    checkSheetSnapshot(result.snapshot,player,validate);journal.accept(result.accepted,result.snapshot.revisions);hydrate(result.snapshot);
@@ -50,11 +50,9 @@ export function startSheetSync({call,journal,apply,validate,onState=()=>{}}){
  }
  function changed(){
   if(applying)return;
-  for(const player of sessions.keys())if(journal.pending(player).length)set(player,false,'Saving to Google Sheet…');
+  for(const player of sessions.keys())if(journal.pending(player).length)set(player,false,'Saving to Google Sheet…',{saving:true});
   clearTimeout(timer);timer=setTimeout(()=>{for(const player of sessions.keys())if(journal.pending(player).length)void run(player,()=>drain(player)).catch(()=>{});},0);
  }
  async function review(player,confirm){return run(player,async()=>{const snapshot=await load(player),waiting=journal.pending(player),items=waiting.map(e=>({type:e.kind,action:e.operation,date:e.record.session_date??'',entry:e.record.title??e.record.context??e.record.drill_id??e.record.id,waiting:e.record,saved:snapshot.records[e.kind].find(r=>r.id===e.record.id)??null}));if(!confirm('Review waiting changes for '+player+'\n\n'+JSON.stringify(items,null,2).slice(0,6000)+'\n\nUse this device’s waiting changes instead of the current Google Sheet versions?')){set(player,false,'Waiting changes preserved. Review them before replacing the Google Sheet versions.',{conflict:true});return false;}journal.rebase(player,snapshot.revisions);await drain(player);return true;});}
  return {async readDrafts(player){if(!sessions.has(player))throw Error('Sign in to load unfinished drafts.');return call('getPlayerDrafts',[{player,token:sessions.get(player)}]);},async saveDrafts(player,changes){if(!sessions.has(player))throw Error('Sign in to save unfinished drafts.');return call('writePlayerDrafts',[{player,token:sessions.get(player),changes}]);},login,refresh,refreshInBackground,changed,status,review,async readConcentrationSummary(player){const token=sessions.get(player);if(!token)throw Error('Sign in to load the team average.');return call('getConcentrationSummary',[{player,token}]);},async readCalendar(player){const token=sessions.get(player);if(!token)throw Error('Sign in to view the team calendar.');return call('getPlayerTeamCalendar',[{player,token}]);},ready:player=>status(player).ready,applying:()=>applying,revision:(player,kind,id)=>snapshots.get(player)?.revisions[kind+'|'+id]??null,async applyCoach(result){if(result?.source!=='google_sheet'||!Array.isArray(result.snapshots))throw Error('Coach Google Sheet records could not be verified.');for(const snapshot of result.snapshots)checkSheetSnapshot(snapshot,snapshot.player,validate);for(const snapshot of result.snapshots)hydrate(snapshot);},hasSession:player=>sessions.has(player)};
 }
-
-
