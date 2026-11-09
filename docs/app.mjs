@@ -3,7 +3,7 @@ import {mergeJournalEvents,startDeviceSyncSafety} from './device-sync-safety.mjs
 import {startCoachAttendance} from './coach-attendance.mjs?v=20261102';
 import {startRunning} from './running-ui.mjs?v=running-inline-20261108';
 import {isTeamAveragePlayer} from './team-averages.mjs';
-import {startProVelocity} from './provelocity-ui.mjs?v=steady-provelocity-20261108';
+import {startProVelocity} from './provelocity-ui.mjs?v=corrections-20261109';
 import {startTeamSchedule} from './team-schedule-ui.mjs?v=calendar-list-columns-20261029';
 import {startCoachPasswordReset} from './coach-password-reset.mjs?v=coach-password-reset-20261029';
 import {startCoachPlayerSummary} from './coach-player-summary.mjs';
