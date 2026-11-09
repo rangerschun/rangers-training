@@ -15,8 +15,12 @@ export function startPlayerAccess({players,hashes,element:$,matches=jerseyCodeMa
  const dialog=$('player-access-dialog'),input=$('player-access-code'),error=$('player-access-error'),submit=$('player-access-submit');
  function render(){
   for(const [view,id]of Object.entries(TAB_PLAYER_IDS)){
-   const select=$(id),section=$('view-'+view),unlocked=canAccessView(view)||(verified.has(select.value)&&(!cloudStatus||cloudStatus(select.value).ready)),bar=[...section.children].find(n=>n.classList.contains('tab-player-bar'));
-   section.dataset.playerAccess=unlocked?'verified':'locked';const message=$('access-message-'+view);message.hidden=unlocked&&!cloudStatus;if(canAccessView(view)){message.textContent='Coach access · team calendar.';}else if(cloudStatus&&verified.has(select.value)){message.replaceChildren(document.createTextNode(cloudStatus(select.value).message));if(!unlocked){const retry=document.createElement('button');retry.type='button';retry.className='secondary-button';retry.textContent=cloudStatus(select.value).conflict?'Review waiting changes':'Retry Google Sheet';retry.addEventListener('click',()=>onRetry(select.value,view));message.append(retry);}}
+   const select=$(id),section=$('view-'+view),status=cloudStatus?.(select.value);
+   const signedIn=verified.has(select.value);
+   const unlocked=canAccessView(view)||(signedIn&&(!cloudStatus||status?.ready));
+   const saving=view==='provelocity'&&signedIn&&status?.saving===true;
+   const bar=[...section.children].find(node=>node.classList.contains('tab-player-bar'));
+   section.dataset.playerAccess=unlocked?'verified':saving?'saving':'locked';const message=$('access-message-'+view);message.hidden=unlocked&&!cloudStatus;if(canAccessView(view)){message.textContent='Coach access · team calendar.';}else if(status&&signedIn){message.replaceChildren(document.createTextNode(status.message));if(!unlocked&&!saving){const retry=document.createElement('button');retry.type='button';retry.className='secondary-button';retry.textContent=status.conflict?'Review waiting changes':'Retry Google Sheet';retry.addEventListener('click',()=>onRetry(select.value,view));message.append(retry);}}
    for(const child of section.children)if(child!==bar&&!child.classList.contains('page-heading')&&!child.classList.contains('player-access-message'))child.inert=!unlocked;
    if(bar)for(const field of bar.children)if(!field.contains(select))field.inert=!unlocked;
   }
