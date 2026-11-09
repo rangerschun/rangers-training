@@ -1,5 +1,5 @@
 import {startPlayerDraftAutosave} from './player-drafts-ui.mjs?v=20261108';
-import {mergeJournalEvents,startDeviceSyncSafety} from './device-sync-safety.mjs?v=20261108';
+import {mergeJournalEvents,startDeviceSyncSafety} from './device-sync-safety.mjs?v=steady-week-20261108';
 import {startCoachAttendance} from './coach-attendance.mjs?v=20261102';
 import {startRunning} from './running-ui.mjs?v=running-inline-20261108';
 import {isTeamAveragePlayer} from './team-averages.mjs';
@@ -10,7 +10,7 @@ import {startCoachPlayerSummary} from './coach-player-summary.mjs';
 import { TRAINING_BACKEND_CONFIG } from './training-config.mjs';
 import { trainingStorage } from './training-storage.mjs';
 import {defaultPlyoballBrand} from './plyoball-defaults.mjs?v=schedule-auto-refresh-20261025';
-import {startSheetSync} from './sheet-sync.mjs?v=field-drafts-20261108';
+import {startSheetSync} from './sheet-sync.mjs?v=steady-week-20261108';
 import {startGameChangerCoach} from './gamechanger-coach.mjs?v=schedule-auto-refresh-20261025';
 import {startTargetBaseline} from './target-baseline.mjs?v=schedule-auto-refresh-20261025';
 import {startVisionVideos} from './vision-videos.mjs?v=schedule-auto-refresh-20261025';
@@ -515,7 +515,10 @@ function hydratePlayerRecords(player,records){
   persistBlast(merged(blastRecords,records.blast));renderBlastHistory();
   persistBaseball(merged(baseballRecords,records.baseball));renderBaseballHistory();
   blastPcrLog.replaceRecords(merged(blastPcrLog.records(),records.blast_pcr));
-  workoutFlow.commit(merged(workoutFlow.records(),records.workout),{journal:false});
+    const workouts=workoutFlow.records();
+  if(JSON.stringify(workouts.filter(record=>record.player===player))!==JSON.stringify(records.workout)){
+   workoutFlow.commit(merged(workouts,records.workout),{journal:false});
+  }
   overspeedLog.replaceRecords(merged(overspeedLog.records(),records.overspeed));
   overspeedProtocol.replaceRecords(merged(overspeedProtocol.records(),records.overspeed_session));
   pulseLog.replaceRecords(merged(pulseLog.records(),records.pulse));
