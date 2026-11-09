@@ -14,6 +14,19 @@ export function startProVelocity({players,flow,element:$,download,ready=()=>true
  function error(e){$('pv-error').textContent=e.message;$('pv-error').hidden=false;}
  function guard(){if(!dirty)return true;if(!window.confirm('Discard unsaved ProVelocity changes?'))return false;drafts.clear();dayNotes=null;dirty=false;return true;}
  function persist(record){if(!ready(select.value))throw Error('Wait for Google Sheet to load or finish saving.');validateProVelocityChange(records(),record,players);const wrapped={id:record.id,player:record.player,session_date:record.session_date,title:`ProVelocity · Week ${record.week}${record.record_type==='session'?' / Day '+record.day:' baseline'}`,category:'baseball',duration_minutes:null,effort:'',notes:record.notes||(record.record_type==='session'&&record.completion_status!=='completed'?'ProVelocity workout in progress.':''),source_template_id:PV_PROGRAM_ID,completion_status:record.record_type==='baseline'||pvComplete(record)?'completed':'partial',completion_confirmed:true,created_at:record.created_at,updated_at:record.updated_at,provelocity:record,exercises:record.record_type==='baseline'?[{name:'Weekly baseline test',sets:1,reps:1,weight:null,weight_unit:'none',notes:'Baseline values retained in ProVelocity details.',completed:true}]:record.steps.map(s=>({name:PV_WEEKS[record.week-1].drills.find(d=>d.id===s.drill_id).name,sets:1,reps:s.actual_reps,weight:s.bands_5lb===null?null:s.bands_5lb*5+s.bands_15lb*15,weight_unit:s.bands_5lb===null?'none':'lb',notes:s.notes,completed:true,source_exercise_id:s.drill_id}))};validateWorkout(wrapped,players);dirty=false;dayNotes=null;flow.commit([...flow.records().filter(r=>r.id!==wrapped.id),wrapped]);$('pv-announcement').textContent='Waiting for Google Sheet confirmation. Progress will be available on your other devices after saving finishes.';}
+ function assertCanReopen(record){
+  if(!record||record.player!==select.value)throw Error('Choose a saved ProVelocity workout.');
+  if(!ready(select.value))throw Error('Wait for Google Sheet to load or finish saving.');
+  const later=records().some(saved=>saved.player===record.player&&
+   (saved.week>record.week||saved.week===record.week&&saved.record_type==='session'&&saved.day>record.day));
+  if(later)throw Error('A later ProVelocity workout or week is already logged. Correct the latest workout first.');
+ }
+ function removeWorkout(record){
+  drafts.clear();dayNotes=null;dirty=false;
+  flow.commit(flow.records().filter(saved=>saved.id!==record.id));
+  $('pv-date').value=record.session_date;
+  $('pv-announcement').textContent='Workout removed. Waiting for Google Sheet confirmation.';
+ }
  function base(type){const prior=type==='session'?current():records().find(r=>r.id===pvRecordId(select.value,week,null)),stamp=new Date().toISOString();return {id:pvRecordId(select.value,week,type==='session'?day:null),player:select.value,program_id:PV_PROGRAM_ID,record_type:type,bat_length_in:32,week,...(type==='session'?{day}:{}),session_date:$('pv-date').value,notes:type==='session'?(dayNotes??prior?.notes??'').trim():(prior?.notes??''),created_at:prior?.created_at??stamp,updated_at:stamp};}
  function choose(nextWeek,nextDay){
   if(week===nextWeek&&day===nextDay)return;
@@ -37,14 +50,18 @@ export function startProVelocity({players,flow,element:$,download,ready=()=>true
   const days=$('pv-days');
   if(!days.children.length){
    for(let dayNumber=1;dayNumber<=4;dayNumber++){
-    button(days,`Day ${dayNumber}`,()=>choose(week,dayNumber));
+    const dayButton=button(days,'',()=>choose(week,dayNumber));
+    const mark=n('span','pv-day-done','X');mark.hidden=true;mark.setAttribute('aria-label','Completed');mark.setAttribute('role','img');
+    dayButton.append(mark,n('span','',`Day ${dayNumber}`));
    }
   }
   for(const [index,dayButton]of Array.from(days.children).entries()){
    const dayNumber=index+1;
    const saved=w.days[index];
-   const label=`${pvComplete(saved)?'X · ':''}Day ${dayNumber}${saved&&!pvComplete(saved)?' · resume':''}`;
-   if(dayButton.textContent!==label)dayButton.textContent=label;
+   const completed=pvComplete(saved),[mark,labelNode]=dayButton.children;
+   mark.hidden=!completed;
+   const label=`Day ${dayNumber}${saved&&!completed?' · resume':''}`;
+   if(labelNode.textContent!==label)labelNode.textContent=label;
    dayButton.disabled=!w.unlocked||(dayNumber>1&&!pvComplete(w.days[index-1]));
    dayButton.classList.toggle('pv-selected',day===dayNumber);
    dayButton.setAttribute('aria-pressed',String(day===dayNumber));
@@ -56,7 +73,7 @@ export function startProVelocity({players,flow,element:$,download,ready=()=>true
   const grid=n('div','pv-drill-grid');
   plan.forEach((d,i)=>{
    const saved=r?.steps[i],draft=drafts.get(d.id),values=draft??saved,card=n('article','pv-drill-card'+(saved?' pv-card-complete':'')),prefix='pv-drill-'+i+'-',locked=i>(r?.steps.length??0);
-   const label=n('label','pv-drill-heading'),check=n('input');check.id=prefix+'complete';check.type='checkbox';check.checked=Boolean(saved);check.disabled=locked||Boolean(saved);check.setAttribute('aria-label',`Complete drill ${i+1}: ${d.name}`);label.append(check,n('span','',`${i+1}. ${d.name}`));card.append(label,n('p','pv-reps-label',`${d.reps} reps`));
+   const label=n('label','pv-drill-heading'),check=n('input');check.id=prefix+'complete';check.type='checkbox';check.checked=Boolean(saved);check.disabled=locked;check.setAttribute('aria-label',`${saved?'Undo drill':'Complete drill'} ${i+1}: ${d.name}`);label.append(check,n('span','',`${i+1}. ${d.name}`));card.append(label,n('p','pv-reps-label',`${d.reps} reps`));
    card.append(n('p','pv-band-label',`5-lb bands: ${d.bands_5lb??'—'} | 15-lb bands: ${d.bands_15lb??'—'}`));
    if(d.bands_5lb===null)card.append(n('p','field-help','Band counts not specified in the source. Confirm the setup with your coach.'));
    const link=n('a','exercise-demo',d.name==='Check Swing Drill'?'Watch demo ↗':'Technique videos ↗');link.href=d.name==='Check Swing Drill'?'https://player.vimeo.com/video/725669407?h=fbc5a7efe2':PV_MANUAL;link.target='_blank';link.rel='noopener noreferrer';card.append(link);
@@ -65,14 +82,39 @@ export function startProVelocity({players,flow,element:$,download,ready=()=>true
    if(typeof d.reps!=='number')field('reps','Actual reps',values?.actual_reps,{step:'1',min:d.reps==='5–10'?'5':'1',max:d.reps==='5–10'?'10':'999'});
    if(typeof d.bands_5lb==='string'){field('band5','5-lb bands used',values?.bands_5lb,{step:'1'});field('band15','15-lb bands used',values?.bands_15lb,{step:'1'});}
    if(fields.children.length)card.append(fields);
-   const message=n('p','pv-card-status',saved?'Completed':locked?'Complete the previous drill first.':'Check the box after completing all reps.');message.setAttribute('role','status');card.append(message);
+   const message=n('p','pv-card-status',saved?'Completed · uncheck to undo':locked?'Complete the previous drill first.':'Check the box after completing all reps.');message.setAttribute('role','status');card.append(message);
    function readStep(){return {drill_id:d.id,completed:true,actual_reps:typeof d.reps==='number'?d.reps:number(prefix+'reps'),bands_5lb:typeof d.bands_5lb==='string'?number(prefix+'band5'):d.bands_5lb,bands_15lb:typeof d.bands_15lb==='string'?number(prefix+'band15'):d.bands_15lb,swings_mph:saved?.swings_mph??[null,null,null],notes:saved?.notes??''};}
    card.addEventListener('input',event=>{if(event.target===check)return;drafts.set(d.id,readStep());dirty=true;});
    function saveDrill(){try{const latest=current(),steps=[...(latest?.steps??[])];steps[i]=readStep();const record={...base('session'),entry_mode:'completion',radar_mode:latest?.radar_mode??'no_radar',steps,completion_status:steps.length===plan.length?'completed':'in_progress'};persist(record);drafts.delete(d.id);render();}catch(e){check.checked=Boolean(saved);message.textContent=e.message;message.className='pv-card-status form-error';error(e);}}
-   check.addEventListener('change',()=>{if(check.checked)saveDrill();});if(saved&&(typeof d.reps!=='number'||typeof d.bands_5lb==='string'))button(card,'Update results',saveDrill,false,'secondary-button');grid.append(card);
+   check.addEventListener('input',event=>event.stopPropagation());
+   check.addEventListener('change',event=>{
+    event.stopPropagation();
+    if(check.checked){saveDrill();return;}
+    try{
+     const latest=current();
+     assertCanReopen(latest);
+     const following=latest.steps.length-i-1;
+     if(i===0||following>0){
+      const prompt=i===0?'Uncheck this drill and remove the workout, including its saved checks and notes?':
+       `Uncheck this drill and the ${following} completed ${following===1?'drill':'drills'} after it?`;
+      if(!window.confirm(prompt)){check.checked=true;return;}
+     }
+     if(i===0){removeWorkout(latest);return;}
+     for(const step of latest.steps.slice(i))drafts.delete(step.drill_id);
+     persist({...latest,notes:(dayNotes??latest.notes).trim(),steps:latest.steps.slice(0,i),completion_status:'in_progress',updated_at:new Date().toISOString()});
+    }catch(e){check.checked=true;error(e);}
+   });if(saved&&(typeof d.reps!=='number'||typeof d.bands_5lb==='string'))button(card,'Update results',saveDrill,false,'secondary-button');grid.append(card);
   });box.append(grid);
   const notesBox=n('div','pv-day-notes'),notesLabel=n('label','','Day notes (optional)'),notesInput=n('textarea');notesInput.id='pv-day-notes';notesInput.rows=3;notesInput.maxLength=500;notesInput.value=dayNotes??r?.notes??'';notesLabel.htmlFor=notesInput.id;notesLabel.append(notesInput);notesBox.append(notesLabel);notesInput.addEventListener('input',()=>{dayNotes=notesInput.value;dirty=true;});
-  button(notesBox,'Save day notes',()=>{try{const saved=current();if(!saved)throw Error('Complete at least one drill first. Your notes will save with the first checked drill.');persist({...saved,notes:notesInput.value.trim(),updated_at:new Date().toISOString()});render();}catch(e){error(e);}},!r);if(!r)notesBox.append(n('p','field-help','Notes save with your first completed drill.'));box.append(notesBox);
+  button(notesBox,'Save day notes',()=>{try{const saved=current();if(!saved)throw Error('Complete at least one drill first. Your notes will save with the first checked drill.');persist({...saved,notes:notesInput.value.trim(),updated_at:new Date().toISOString()});render();}catch(e){error(e);}},!r);if(!r)notesBox.append(n('p','field-help','Notes save with your first completed drill.'));
+  if(r)button(notesBox,'Delete workout',()=>{
+   try{
+    const latest=current();
+    assertCanReopen(latest);
+    if(window.confirm(`Delete ProVelocity Week ${week}, Day ${day}? This removes its drill checks and notes.`))removeWorkout(latest);
+   }catch(e){error(e);}
+  },false,'delete-button');
+  box.append(notesBox);
 
   if(pvComplete(r)){const actions=n('div','pv-actions');if(day<4)button(actions,'Next workout',()=>choose(week,day+1));else if(week<10)button(actions,'Next week',()=>choose(week+1,1),!p.weeks[week].unlocked);box.append(actions);}
   $('pv-outline').replaceChildren();
