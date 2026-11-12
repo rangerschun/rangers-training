@@ -13,7 +13,14 @@ export function startOtaRunning({flow,players,element:$,validate,ready,onChooseP
  const locked=()=>program==='ota-advanced'&&otaBeginnerProgress(flow.records(),player()).completed<48;
  function error(e){$('running-ota-error').hidden=false;$('running-ota-error').textContent=e.message;}
  function updateDraft(){$('running-ota-save').disabled=!dirty||!$('running-ota-complete').checked||locked();}
- for(const [id,count,label]of [['running-ota-week',12,'Week'],['running-ota-day',4,'Day']]){const select=$(id);select.replaceChildren();for(let i=1;i<=count;i++){const o=make('option','',`${label} ${i}`);o.value=String(i);select.append(o);}}
+ const weekPicker=$('running-ota-week'),dayPicker=$('running-ota-day');
+ weekPicker.replaceChildren();
+ for(let i=1;i<=12;i++){const option=make('option','',`Week ${i}`);option.value=String(i);weekPicker.append(option);}
+ for(let i=1;i<=4;i++){
+  const button=make('button','',`Day ${i}`);button.type='button';button.value=String(i);
+  button.addEventListener('click',()=>{if(day===i||!guard())return;day=i;date=runningToday();dirty=false;render();});
+  dayPicker.append(button);
+ }
  function renderHistory(){
   const box=$('running-ota-history');box.replaceChildren();const records=own().sort((a,b)=>b.session_date.localeCompare(a.session_date)||String(b.updated_at).localeCompare(String(a.updated_at)));
   $('running-ota-clear').disabled=!records.length;
@@ -28,8 +35,9 @@ export function startOtaRunning({flow,players,element:$,validate,ready,onChooseP
   $('running-ota-lock').hidden=!locked();$('running-ota-form').hidden=locked();$('running-ota-history-card').hidden=locked();
   $('running-ota-lock-count').textContent=`${count} / 48 Beginner sessions completed. Finish all 12 weeks of Beginner to unlock Advanced.`;
   $('running-ota-lock-progress').value=count;
-  $('running-ota-week-label').hidden=$('running-ota-day-label').hidden=!isBeginner;
-  $('running-ota-week').value=String(week);$('running-ota-day').value=String(day);
+  $('running-ota-week-label').hidden=$('running-ota-day-field').hidden=!isBeginner;
+  weekPicker.value=String(week);
+  for(const button of dayPicker.children)button.setAttribute('aria-pressed',String(Number(button.value)===day));
   $('running-ota-coverage').textContent=isBeginner?'All 48 sessions from the Chun-Running Beginner program are included. Check completion only after finishing all the listed work.':'Selected workout reference from Chun-Running. The full '+(program==='ota-bodyweight'?'Body Weight':'Advanced')+' schedule has not been imported in the source site.';
   $('running-ota-session-title').textContent=isBeginner?`Week ${week} / Day ${day} · ${session.title}`:session.title;
   $('running-ota-stage').textContent=isBeginner?`Phase ${session.phase} · ${session.stage}`:'Complete the reference workout listed below.';
@@ -42,7 +50,6 @@ export function startOtaRunning({flow,players,element:$,validate,ready,onChooseP
  for(const id of ['running-ota-complete','running-ota-notes'])$(id).addEventListener('input',()=>{dirty=true;updateDraft();});
  $('running-ota-complete').addEventListener('change',()=>{dirty=true;updateDraft();});
  $('running-ota-week').addEventListener('change',()=>{if(!guard()){$('running-ota-week').value=String(week);return;}week=Number($('running-ota-week').value);day=1;date=runningToday();dirty=false;render();});
- $('running-ota-day').addEventListener('change',()=>{if(!guard()){$('running-ota-day').value=String(day);return;}day=Number($('running-ota-day').value);date=runningToday();dirty=false;render();});
  $('running-ota-date').addEventListener('change',()=>{if(program==='ota-beginner'){dirty=true;updateDraft();return;}if(!guard()){$('running-ota-date').value=date;return;}date=$('running-ota-date').value;render();});
  $('running-ota-go-beginner').addEventListener('click',()=>onChooseProgram('ota-beginner'));
  $('running-ota-form').addEventListener('submit',event=>{event.preventDefault();try{

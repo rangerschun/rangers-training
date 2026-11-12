@@ -1,4 +1,4 @@
-import {startOtaRunning} from './ota-running-ui.mjs?v=inline-20261108';
+import {startOtaRunning} from './ota-running-ui.mjs?v=visible-days-20261112';
 import {RUNNING_PROGRAMS,otaBeginnerProgress,runningProgramFromHash} from './ota-running-program.mjs?v=20261101';
 import {RUNNING_DAYS,RUNNING_WEEKS,runningDay,runningSource,runningRecord,runningProgress,runningNotes,runningToday} from './running-program.mjs?v=20261101';
 export function startRunning({players,flow,element:$,validate,ready=()=>true}){
@@ -6,9 +6,15 @@ export function startRunning({players,flow,element:$,validate,ready=()=>true}){
  let player='',week=1,day=1,dirty=false,program=runningProgramFromHash(globalThis.location?.hash);
  const ota=startOtaRunning({players,flow,element:$,validate,ready,onChooseProgram:chooseProgram});
  const picker=$('running-player'),weekPicker=$('running-week'),dayPicker=$('running-day');
- for(const [select,options]of [[picker,[['','Choose a player'],...players.map(p=>[p,p])]], [weekPicker,RUNNING_WEEKS.map(w=>[w,'Week '+w])], [dayPicker,RUNNING_DAYS.map((d,i)=>[i+1,d.day+' · '+d.focus])]]){
+ for(const [select,options]of [[picker,[['','Choose a player'],...players.map(p=>[p,p])]], [weekPicker,RUNNING_WEEKS.map(w=>[w,'Week '+w])]]){
   select.replaceChildren();for(const [value,label]of options){const o=make('option','',label);o.value=String(value);select.append(o);}
  }
+ RUNNING_DAYS.forEach((workout,index)=>{
+  const button=make('button','',workout.day+' · '+workout.focus);
+  button.type='button';button.value=String(index+1);
+  button.addEventListener('click',()=>{if(day===index+1||!guard())return;day=index+1;dirty=false;render();});
+  dayPicker.append(button);
+ });
  const own=()=>flow.records().filter(r=>r.player===picker.value&&/^driveline-running-w[1-6]-d[1-4]$/.test(r.source_template_id??''));
  const current=()=>own().find(r=>r.source_template_id===runningSource(week,day));
  const guard=()=>!(dirty||ota.hasDraft())||window.confirm('Discard unsaved Running changes?');
@@ -17,8 +23,8 @@ export function startRunning({players,flow,element:$,validate,ready=()=>true}){
  function progress(){
   const p=runningProgress(own(),picker.value);$('running-summary').textContent=`${p.completed} / 24 workouts completed · Six weeks · Four training days per week`;
   for(const o of weekPicker.options){const w=Number(o.value),count=p.weeks[w-1];o.textContent=`Week ${w}${count===4?' · X':''} · ${count}/4 completed`;}
-  for(const o of dayPicker.options){const d=Number(o.value),r=own().find(r=>r.source_template_id===runningSource(week,d));o.textContent=`${r?.completion_status==='completed'?'X · ':''}${RUNNING_DAYS[d-1].day} · ${RUNNING_DAYS[d-1].focus}`;}
-  weekPicker.value=String(week);dayPicker.value=String(day);
+  for(const o of dayPicker.children){const d=Number(o.value),r=own().find(r=>r.source_template_id===runningSource(week,d));o.textContent=`${r?.completion_status==='completed'?'X · ':''}${RUNNING_DAYS[d-1].day} · ${RUNNING_DAYS[d-1].focus}`;o.setAttribute('aria-pressed',String(d===day));}
+  weekPicker.value=String(week);
  }
  function updateDraft(){
   const checks=[...$('running-exercises').querySelectorAll('input[type="checkbox"]')],count=checks.filter(e=>e.checked).length;
@@ -56,7 +62,6 @@ export function startRunning({players,flow,element:$,validate,ready=()=>true}){
  }
  picker.addEventListener('change',()=>{if(!guard()){picker.value=player;return;}player=picker.value;week=1;day=1;dirty=false;ota.reset();$('running-announcement').textContent='';render();});
  weekPicker.addEventListener('change',()=>{if(!guard()){weekPicker.value=String(week);return;}week=Number(weekPicker.value);day=1;dirty=false;render();});
- dayPicker.addEventListener('change',()=>{if(!guard()){dayPicker.value=String(day);return;}day=Number(dayPicker.value);dirty=false;render();});
  for(const id of ['running-date','running-notes'])$(id).addEventListener('input',()=>{dirty=true;updateDraft();});
  $('running-form').addEventListener('submit',event=>{
   event.preventDefault();clearError();try{

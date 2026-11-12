@@ -1,8 +1,13 @@
 .running-controls{margin:22px 0;padding:24px;border:1px solid #d9e4ed;border-radius:9px;background:white}
 .running-selectors{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr) minmax(0,1fr);gap:18px}
-.running-selectors label,.running-notes{display:block;min-width:0;font-size:14px;color:#526980;font-weight:650}
+.running-selectors label,.running-day-field,.running-notes{display:block;min-width:0;font-size:14px;color:#526980;font-weight:650}
 .running-selectors select,.running-selectors input,.running-notes textarea{display:block;width:100%;box-sizing:border-box;min-width:0;min-height:44px;margin-top:8px;padding:11px 12px;border:1px solid #ccdde8;border-radius:6px;font:inherit}
 .running-selectors select{background:var(--dropdown-bg,#f0f7ff)}
+.running-day-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}
+.running-day-options button{min-height:44px;padding:6px 8px;border:1px solid #ccdde8;border-radius:6px;background:#f0f7ff;color:#16344d;font:inherit;cursor:pointer;overflow-wrap:anywhere}
+.running-day-options button[aria-pressed="true"]{border-color:#214c72;background:#214c72;color:#fff}
+.running-day-options button:focus-visible{outline:2px solid #214c72;outline-offset:2px}
+.running-selectors [hidden]{display:none}
 .running-exercises{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;padding:0;list-style:none;margin:20px 0}
 .running-exercise{padding:18px;min-width:0;border:1px solid #d5e4ed;background:#f6faff;border-radius:8px}
 .running-check{display:flex;gap:10px;align-items:flex-start;font-size:15px;line-height:1.5;font-weight:700;color:#29485f}
