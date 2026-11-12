@@ -1,7 +1,7 @@
-import {startPlayerDraftAutosave} from './player-drafts-ui.mjs?v=20261108';
+import {startPlayerDraftAutosave} from './player-drafts-ui.mjs?v=visible-days-20261112';
 import {mergeJournalEvents,startDeviceSyncSafety} from './device-sync-safety.mjs?v=steady-week-20261108';
 import {startCoachAttendance} from './coach-attendance.mjs?v=20261102';
-import {startRunning} from './running-ui.mjs?v=running-inline-20261108';
+import {startRunning} from './running-ui.mjs?v=visible-days-20261112';
 // Personal-use accounts keep their records, but never contribute to team benchmarks.
 const TEAM_AVERAGE_SCOPE='team-roster-20261031';
 const TEAM_AVERAGE_EXCLUSIONS=Object.freeze(['Marcus','Dominic','Demo']);
