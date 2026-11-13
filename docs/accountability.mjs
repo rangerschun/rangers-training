@@ -1,3 +1,4 @@
+import {isThrowingSkip} from './workout-record-tools.mjs?v=throwing-skip-20261113';
 import { validateWorkout } from './engine.mjs?v=schedule-auto-refresh-20261025';
 import { ENTRY_HEADERS } from './journal.mjs?v=schedule-auto-refresh-20261025';
 import { workoutExerciseRecorded, workoutChecklistProgress } from './workout-checklist.mjs?v=schedule-auto-refresh-20261025';
@@ -21,7 +22,7 @@ export function workoutActivity(records,players,{from,to}){
   activityDate(from);activityDate(to);if(from>to)throw new TypeError('The start date must be on or before the end date.');
   if(!Array.isArray(records)||!Array.isArray(players)||new Set(players).size!==players.length)throw new TypeError('Invalid workout overview.');
   const seen=new Set();for(const record of records){validateWorkout(record,players);const key=JSON.stringify([record.player,record.id]);if(seen.has(key))throw new Error('Duplicate workout identity.');seen.add(key);}
-  const selected=records.filter(record=>record.session_date>=from&&record.session_date<=to);
+  const selected=records.filter(record=>!isThrowingSkip(record)&&record.session_date>=from&&record.session_date<=to);
   const rows=players.map(player=>{
     const entries=selected.filter(record=>record.player===player).sort((a,b)=>b.session_date.localeCompare(a.session_date)||String(b.coach_last_received_at??b.updated_at??b.created_at??'').localeCompare(String(a.coach_last_received_at??a.updated_at??a.created_at??'')));
     return {player,logged:entries.length,completed:entries.filter(r=>r.completion_status==='completed'&&r.completion_confirmed===true&&workoutActualDetails(r).all).length,partial:entries.filter(r=>r.completion_status==='partial').length,earlier_logs:entries.filter(r=>!r.completion_status).length,details_missing:entries.filter(r=>r.entry_mode!=='plan_checklist'&&!workoutActualDetails(r).all).length,last_workout_date:entries[0]?.session_date??null,records:entries};

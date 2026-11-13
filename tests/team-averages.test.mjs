@@ -32,7 +32,7 @@ test('Google team summary excludes personal-use entries but permits those player
  const result=JSON.parse(context.getConcentrationSummary(JSON.stringify({player:'Demo',token:'valid'})));assert.equal(result.session_count,2);assert.equal(result.average_ms,90000);assert.equal(result.team_scope,TEAM_AVERAGE_SCOPE);assert.equal(JSON.stringify(records),before);
 });
 test('the actual published runtime uses the same exclusion rule and preserves personal stats',()=>{
- const bundle=readFileSync(new URL('../docs/app-provelocity-b79892551b14.mjs',import.meta.url),'utf8'),prefix=bundle.slice(0,bundle.indexOf('// Exact 32-inch program')),start=bundle.indexOf('const gcRate='),end=bundle.indexOf('\nconst ROSTER=',start);
+ const bundle=readFileSync(new URL('../docs/app-provelocity-b79892551b14.mjs',import.meta.url),'utf8'),prefix=bundle.slice(bundle.indexOf('const TEAM_AVERAGE_SCOPE='),bundle.indexOf('// Exact 32-inch program')),start=bundle.indexOf('const gcRate='),end=bundle.indexOf('\nconst ROSTER=',start);
  const context=vm.createContext({gcNumber:v=>v===null||v===undefined||v===''?null:Number(v),gcOuts:v=>{const m=String(v??'').match(/^(\d+)(?:\.([012]))?$/);return m?Number(m[1])*3+Number(m[2]??0):null;}});
  vm.runInContext(prefix+bundle.slice(start,end).replaceAll('export ','')+';globalThis.api={applyGameChangerExposure,isTeamAveragePlayer}',context);
  const players=[person('Aidan',10,5,1,3,1),person('Marcus',100,100,100,100,1),person('Dominic',100,100,100,100,1),person('Demo',100,100,100,100,1)],season=context.api.applyGameChangerExposure({players});

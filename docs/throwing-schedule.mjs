@@ -1,4 +1,4 @@
-import {THROWING_OFF_DAY_SOURCE} from './workout-record-tools.mjs?v=schedule-auto-refresh-20261025';
+import {isThrowingSkip,THROWING_OFF_DAY_SOURCE} from './workout-record-tools.mjs?v=throwing-skip-20261113';
 const velocity='Velocity OR PlyoCare Velo';
 const standard=['Hybrid A','Off','Hybrid B',velocity,'Recovery','Hybrid B','Recovery'];
 const recovery=['Hybrid A','Off','Recovery',velocity,'Recovery','Hybrid B','Recovery'];
@@ -21,8 +21,9 @@ export function throwingChoices(week,day){
 }
 export function throwingDayRecord(records,{player,start,week,day}){
  const date=throwingDate(start,week,day),ids=throwingChoices(week,day).map(r=>r==='Off'?THROWING_OFF_DAY_SOURCE:THROWING_ROUTINES[r]).filter(Boolean);
- if(!player||!date||!ids.length)return {date,completed:false,partial:false,record:null};
+ if(!player||!date||!ids.length)return {date,completed:false,partial:false,skipped:false,record:null};
  const matching=records.filter(r=>r.player===player&&r.session_date===date&&ids.includes(r.source_template_id));
  const full=matching.filter(r=>r.completion_confirmed===true&&r.completion_status==='completed');
- return {date,completed:full.length>0,partial:!full.length&&matching.length>0,record:full.at(-1)??matching.at(-1)??null};
+ const skipped=!full.length&&records.some(r=>r.player===player&&r.session_date===date&&isThrowingSkip(r));
+ return {date,completed:full.length>0,partial:!full.length&&!skipped&&matching.length>0,skipped,record:full.at(-1)??matching.at(-1)??null};
 }

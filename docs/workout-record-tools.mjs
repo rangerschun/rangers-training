@@ -2,9 +2,11 @@ import { WORKOUT_LIBRARY } from './library.mjs?v=schedule-auto-refresh-20261025'
 import { plateLoadDescription } from './workout-load.mjs?v=schedule-auto-refresh-20261025';
 
 export const THROWING_OFF_DAY_SOURCE='throwing-routine-off-day';
+export const THROWING_SKIP_SOURCE='throwing-routine-skip';
+export function isThrowingSkip(record){return record?.source_template_id===THROWING_SKIP_SOURCE;}
 export function isThrowingOffDay(record){return record?.source_template_id===THROWING_OFF_DAY_SOURCE;}
 export function isThrowingWorkout(record){
-  return isThrowingOffDay(record)||WORKOUT_LIBRARY.templates.some(template=>template.id===record.source_template_id&&template.program_id==='throwing-routine');
+  return isThrowingSkip(record)||isThrowingOffDay(record)||WORKOUT_LIBRARY.templates.some(template=>template.id===record.source_template_id&&template.program_id==='throwing-routine');
 }
 /** Prior actual load only. No target, unit conversion or automatic load entry. */
 export function previousWorkoutLoad(records,{player,exercise,session_date,exclude_id}){
