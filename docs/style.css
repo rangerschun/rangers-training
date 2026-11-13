@@ -282,3 +282,5 @@ select option,select optgroup{background-color:var(--dropdown-bg)}
 
 /* Three-column calendar list, grouped by date. */
 .schedule-events.schedule-list-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;overflow:visible;align-items:start}.schedule-list-day{min-width:0}.schedule-list-day .schedule-date-heading{font-size:15px;line-height:1.5;margin:0 0 12px}.schedule-list-day .schedule-event{margin:0 0 12px;padding:16px}.schedule-list-day .schedule-event h3{font-size:15px}.schedule-list-grid>.library-empty{grid-column:1/-1}@media(max-width:1100px){.schedule-events.schedule-list-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:700px){.schedule-events.schedule-list-grid{grid-template-columns:minmax(0,1fr)}}
+
+.throwing-calendar-s{color:#b91c1c;font-weight:800}

@@ -1153,43 +1153,62 @@ export function throwingChoices(week,day){
 }
 export function throwingDayRecord(records,{player,start,week,day}){
  const date=throwingDate(start,week,day),ids=throwingChoices(week,day).map(r=>r==='Off'?THROWING_OFF_DAY_SOURCE:THROWING_ROUTINES[r]).filter(Boolean);
- if(!player||!date||!ids.length)return {date,completed:false,partial:false,record:null};
+ if(!player||!date||!ids.length)return {date,completed:false,partial:false,skipped:false,record:null};
  const matching=records.filter(r=>r.player===player&&r.session_date===date&&ids.includes(r.source_template_id));
  const full=matching.filter(r=>r.completion_confirmed===true&&r.completion_status==='completed');
- return {date,completed:full.length>0,partial:!full.length&&matching.length>0,record:full.at(-1)??matching.at(-1)??null};
+ const skipped=!full.length&&records.some(r=>r.player===player&&r.session_date===date&&isThrowingSkip(r));
+ return {date,completed:full.length>0,partial:!full.length&&!skipped&&matching.length>0,skipped,record:full.at(-1)??matching.at(-1)??null};
 }
 
 
 export function startThrowingCalendar({players,scope,element:$,flow,subscribe,onStartChange=()=>{}}){
  const key='rangers-throwing-calendar-v1-'+scope,make=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n;};
  const player=()=>$('throwing-player').value;
- let starts={},readable=true,saving=true,active='',offContext=null,lastPlayer=player();
+ let starts={},readable=true,saving=true,active='',offContext=null,skipContext=null,lastPlayer=player();
+ const skipButton=make('button','secondary-button throwing-skip-button');skipButton.type='button';skipButton.hidden=true;
+ $('throwing-form').querySelector('.workout-form-footer').append(skipButton);
+ skipButton.addEventListener('click',()=>{
+  if(!skipContext||skipContext.player!==player()||skipContext.start!==starts[player()])return;
+  const {week,day,player:name,start}=skipContext;
+  const state=throwingDayRecord(flow.records(),{player:name,start,week,day});
+  if(state.completed)return;
+  try{
+   flow.setThrowingSkip({player:name,date:state.date,skipped:!state.skipped});
+   $('throwing-calendar-message').textContent=state.skipped?'Throwing skip removed.':'Throwing day marked skipped. Choose another day to continue.';
+   render();
+  }catch(error){$('throwing-calendar-message').textContent=error.message;}
+ });
  try{const raw=trainingStorage.getItem(key);if(raw){const value=JSON.parse(raw);if(value.version!==1||!value.starts||typeof value.starts!=='object'||Array.isArray(value.starts))throw Error();for(const [name,date] of Object.entries(value.starts))if(!players.includes(name)||!throwingDate(date,1,1))throw Error();starts=value.starts;}}
  catch{readable=false;$('throwing-calendar-message').textContent='Saved calendar dates could not be read. Existing data is preserved; choose a Day 1 date for this page.';}
  const shortDate=date=>new Date(date+'T12:00:00Z').toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'UTC'});
  function render(){
   const name=player(),start=starts[name]??'',body=$('throwing-calendar-body');body.replaceChildren();$('throwing-calendar-start').disabled=!name;$('throwing-calendar-start').value=start;
-  let full=0,partial=0;
+  let full=0,partial=0,skipped=0;
   for(const row of THROWING_SCHEDULE){
    const tr=make('tr',row.phase==='De-load Week'?'throwing-plan-deload':''),phase=make('td','throwing-plan-phase',row.phase),week=make('th','','Week '+row.week);week.scope='row';tr.append(phase,week);
    row.days.forEach((routine,index)=>{
     const day=index+1,state=throwingDayRecord(flow.records(),{player:name,start,week:row.week,day}),id=row.week+'-'+day;
-    if(state.completed)full++;if(state.partial)partial++;
+    if(state.completed)full++;if(state.partial)partial++;if(state.skipped)skipped++;
     const td=make('td'),type=routine==='Off'?'off':routine==='Hybrid A'?'hybrid-a':routine==='Hybrid B'?'hybrid-b':routine.startsWith('Recovery')?'recovery':'velocity';
     const button=make('button','throwing-calendar-day throwing-plan-routine '+type+(state.completed?' is-done':''));button.type='button';button.disabled=!name||!start;button.dataset.week=String(row.week);button.dataset.day=String(day);button.setAttribute('aria-pressed',id===active?'true':'false');
     if(state.date)button.append(make('small','throwing-calendar-date',shortDate(state.date)));
-    button.append(make('span','',routine));if(state.completed)button.append(make('strong','throwing-calendar-x','X'));else if(state.partial)button.append(make('small','throwing-calendar-partial','In progress'));
-    button.setAttribute('aria-label',`${name||'Choose a player'} · Week ${row.week}, Day ${day}${state.date?' · '+state.date:''} · ${routine}${state.completed?' · Completed, X':state.partial?' · In progress':''}`);
+    button.append(make('span','',routine));if(state.completed)button.append(make('strong','throwing-calendar-x','X'));else if(state.skipped)button.append(make('strong','throwing-calendar-s','S'));else if(state.partial)button.append(make('small','throwing-calendar-partial','In progress'));
+    button.setAttribute('aria-label',`${name||'Choose a player'} · Week ${row.week}, Day ${day}${state.date?' · '+state.date:''} · ${routine}${state.completed?' · Completed, X':state.skipped?' · Skipped, S':state.partial?' · In progress':''}`);
     button.addEventListener('click',()=>choose(row.week,day));td.append(button);tr.append(td);
    });body.append(tr);
   }
-  $('throwing-calendar-summary').textContent=!name?'Choose your name above to see your own calendar.':!start?`${name}: choose the date of Day 1 to start your calendar.`:`${name} · ${full} completed${partial?' · '+partial+' in progress':''} · X = a completed routine or Off day ${flow.storageState?.().saved===false?'in this open page; export before closing':'saved in Google Sheet'}.`;
+  $('throwing-calendar-summary').textContent=!name?'Choose your name above to see your own calendar.':!start?`${name}: choose the date of Day 1 to start your calendar.`:`${name} · ${full} completed${partial?' · '+partial+' in progress':''}${skipped?' · '+skipped+' skipped':''} · S = skipped · X = a completed routine or Off day ${flow.storageState?.().saved===false?'in this open page; export before closing':'saved in Google Sheet'}.`;
+  const skipState=skipContext?.player===name&&skipContext.start===start
+   ?throwingDayRecord(flow.records(),{player:name,start,week:skipContext.week,day:skipContext.day}):null;
+  skipButton.hidden=!skipState||skipState.completed;
+  skipButton.textContent=skipState?.skipped?'Undo skip':'Skip throwing day';
   if(offContext&&offContext.player===name&&offContext.start===start)offContext.check.checked=flow.records().some(r=>isThrowingOffDay(r)&&r.player===name&&r.session_date===offContext.date&&r.completion_status==='completed'&&r.completion_confirmed===true);
  }
  function open(week,day,routine){
   const date=throwingDate(starts[player()]??'',week,day);
   if(!date||!player())return false;
   if(routine==='Off'){
+   skipContext=null;
    active=week+'-'+day;const name=player(),start=starts[name],box=$('throwing-calendar-choice'),label=make('label','throwing-off-complete'),check=make('input');check.type='checkbox';check.checked=flow.records().some(r=>isThrowingOffDay(r)&&r.player===name&&r.session_date===date&&r.completion_status==='completed'&&r.completion_confirmed===true);check.setAttribute('aria-label',`Off day completed for ${name} on ${date}`);
    label.append(check,make('span','','1. Off day completed'));box.replaceChildren(make('p','',`Week ${week}, Day ${day} · ${shortDate(date)} · ${name}`),label,make('p','field-help','Check to save your Off day and add an X. Uncheck to undo.'));box.hidden=false;
    offContext={player:name,start,date,check};
@@ -1202,7 +1221,7 @@ export function startThrowingCalendar({players,scope,element:$,flow,subscribe,on
    $('throwing-calendar-message').textContent=`Week ${week}, Day ${day} · ${shortDate(date)}: check off your Off day below.`;render();box.scrollIntoView?.({behavior:'smooth',block:'nearest'});return true;
   }
   if(!flow.openTemplate({template_id:THROWING_ROUTINES[routine],date,player:player()}))return false;
-  offContext=null;
+  offContext=null;skipContext={player:player(),start:starts[player()],week,day};
   active=week+'-'+day;$('throwing-form').hidden=false;$('throwing-calendar-choice').hidden=true;$('throwing-calendar-message').textContent=`Week ${week}, Day ${day} · ${shortDate(date)}: ${routine}. Check off the routine below and save. A full saved routine adds an X.`;render();$('throwing-form').scrollIntoView?.({behavior:'smooth',block:'start'});$('throwing-form-title').tabIndex=-1;$('throwing-form-title').focus({preventScroll:true});return true;
  }
  function openChoice(week,day,routine){
@@ -1220,12 +1239,12 @@ export function startThrowingCalendar({players,scope,element:$,flow,subscribe,on
   const routine=choices.find(value=>value==='Off'?isThrowingOffDay(saved):saved?.source_template_id===THROWING_ROUTINES[value])??choices[0];
   openChoice(week,day,routine);
  }
- $('throwing-player').addEventListener('change',()=>{if(player()===lastPlayer){render();return;}lastPlayer=player();active='';offContext=null;$('throwing-form').hidden=true;$('throwing-calendar-choice').hidden=true;if(readable)$('throwing-calendar-message').textContent='';render();});
+ $('throwing-player').addEventListener('change',()=>{if(player()===lastPlayer){render();return;}lastPlayer=player();active='';offContext=null;skipContext=null;$('throwing-form').hidden=true;$('throwing-calendar-choice').hidden=true;if(readable)$('throwing-calendar-message').textContent='';render();});
  $('throwing-calendar-start').addEventListener('change',()=>{
   const name=player(),date=$('throwing-calendar-start').value,prior=starts[name]??'';
   if(!name||!throwingDate(date,1,1)){$('throwing-calendar-message').textContent='Choose a valid Day 1 date.';$('throwing-calendar-start').value=prior;return;}
   if(prior&&prior!==date&&!window.confirm('Change this player’s calendar dates? Saved workout dates stay unchanged.')){$('throwing-calendar-start').value=prior;return;}
-  starts[name]=date;onStartChange(name,date);active='';offContext=null;$('throwing-calendar-choice').hidden=true;
+  starts[name]=date;onStartChange(name,date);active='';offContext=null;skipContext=null;$('throwing-calendar-choice').hidden=true;
   if(!flow.hasDraft?.())$('throwing-form').hidden=true;
   if(readable)try{trainingStorage.setItem(key,JSON.stringify({version:1,starts}));saving=true;}catch{saving=false;}
   $('throwing-calendar-message').textContent=readable&&saving?'Day 1 date saved for '+name+'.': 'Calendar date is kept in this page only; device saving is unavailable.';render();
@@ -1233,7 +1252,7 @@ export function startThrowingCalendar({players,scope,element:$,flow,subscribe,on
  $('throwing-form').addEventListener('submit',()=>{
   // The flow closes only after validation and saving succeed; failed entries remain open.
   if(!$('throwing-form').hidden||flow.hasDraft?.())return;
-  active='';offContext=null;$('throwing-calendar-choice').hidden=true;
+  active='';offContext=null;skipContext=null;$('throwing-calendar-choice').hidden=true;
   $('throwing-calendar-message').textContent='Routine saved. Choose another calendar day, or reopen a saved day or history entry to correct it.';render();
  });
  $('throwing-form').hidden=true;subscribe(()=>render());render();return {applyStart(name,date){if(date)starts[name]=date;else delete starts[name];try{trainingStorage.setItem(key,JSON.stringify({version:1,starts}));}catch{}render();},render};
@@ -2622,9 +2641,11 @@ export function validateWorkoutChecklist(record){
 
 
 export const THROWING_OFF_DAY_SOURCE='throwing-routine-off-day';
+export const THROWING_SKIP_SOURCE='throwing-routine-skip';
+export function isThrowingSkip(record){return record?.source_template_id===THROWING_SKIP_SOURCE;}
 export function isThrowingOffDay(record){return record?.source_template_id===THROWING_OFF_DAY_SOURCE;}
 export function isThrowingWorkout(record){
-  return isThrowingOffDay(record)||WORKOUT_LIBRARY.templates.some(template=>template.id===record.source_template_id&&template.program_id==='throwing-routine');
+  return isThrowingSkip(record)||isThrowingOffDay(record)||WORKOUT_LIBRARY.templates.some(template=>template.id===record.source_template_id&&template.program_id==='throwing-routine');
 }
 /** Prior actual load only. No target, unit conversion or automatic load entry. */
 export function previousWorkoutLoad(records,{player,exercise,session_date,exclude_id}){
@@ -2834,6 +2855,7 @@ export function startWorkoutFlow({players,scope,element:$,download,onChange,vari
     return formatWorkoutDetails(parts.join(' · '))||'Actual numbers not recorded';
   }
   function edit(record){
+    if(isThrowingSkip(record))return false;
     if(isThrowingOffDay(record)){$('workout-announcement').textContent='To change this Off day, open its calendar day and uncheck Off day completed.';onNavigate?.(variant);return false;}
     if((dirty||editing)&&!window.confirm('Replace the unsaved workout draft with this saved workout?'))return;
     const sourceTemplate=WORKOUT_TEMPLATES.find(t=>t.id===record.source_template_id),template=record.entry_mode==='plan_checklist'?sourceTemplate:null;
@@ -2847,9 +2869,9 @@ export function startWorkoutFlow({players,scope,element:$,download,onChange,vari
     $('workout-summary').replaceChildren();const done=items.reduce((n,r)=>n+r.exercises.filter(workoutExerciseRecorded).length,0);
     for(const[label,value,note]of [[throwing?'Routine days logged':'Workouts logged',stats.session_count,'For the selected player'],[throwing?'Activities completed':'Exercises completed',done,'Checks or actual details recorded'],['Most recent workout',stats.last_date??'—','Recorded session date']]){const card=make('article');card.append(make('h3','',label),make('strong',label==='Most recent workout'?'workout-date-stat':'',String(value)),make('small','',note));$('workout-summary').append(card);}
     const history=$('workout-history');history.replaceChildren();if(!items.length)history.append(make('p','workout-empty',player?'No workouts logged yet. Check off your first workout above.':'Choose your name to see your workout journal.'));
-    for(const record of items){const card=make('details','workout-record'),heading=make('summary'),text=make('div'),meta=[record.completion_status==='completed'?'Reported completed':record.completion_status==='partial'?'Partly completed':'Earlier log · not confirmed'];if(record.entry_mode==='plan_checklist'){const p=workoutChecklistProgress(record);meta.push(`${p.recorded} / ${p.total} completed`);}else meta.push(isThrowingOffDay(record)?'Rest day confirmation':`${record.exercises.length} exercises`);if(record.duration_minutes!==null)meta.push(`${record.duration_minutes} min`);text.append(make('span','workout-record-date',`${record.session_date} · ${WORKOUT_CATEGORIES[record.category]}`),make('strong','',record.title),make('small','',meta.join(' · ')));heading.append(text,make('span','workout-expand','+'));card.append(heading);
+    for(const record of items){const card=make('details','workout-record'),heading=make('summary'),text=make('div'),meta=[isThrowingSkip(record)?'Skipped':record.completion_status==='completed'?'Reported completed':record.completion_status==='partial'?'Partly completed':'Earlier log · not confirmed'];if(record.entry_mode==='plan_checklist'){const p=workoutChecklistProgress(record);meta.push(`${p.recorded} / ${p.total} completed`);}else if(!isThrowingSkip(record))meta.push(isThrowingOffDay(record)?'Rest day confirmation':`${record.exercises.length} exercises`);if(record.duration_minutes!==null)meta.push(`${record.duration_minutes} min`);text.append(make('span','workout-record-date',`${record.session_date} · ${WORKOUT_CATEGORIES[record.category]}`),make('strong','',record.title),make('small','',meta.join(' · ')));heading.append(text,make('span','workout-expand','+'));card.append(heading);
       const body=make('div','workout-record-body'),list=make('ol','workout-record-exercises');for(const exercise of record.exercises){const li=make('li'),display=throwing?throwingExerciseDisplay(exercise,throwingSetupFromNotes(record.notes)):null;li.append(make('strong','',display?.name??exercise.name),make('p','',description(exercise,record)));if(exercise.planned_details){const plan=make('small','exercise-plan');if(display)appendThrowingDisplay(plan,display);else plan.textContent=formatWorkoutDetails(exercise.planned_details);li.append(plan);}const link=demo(findWorkoutDemo(exercise.name,exercise.source_exercise_id));if(link&&!display?.longTossAlternative)li.append(link);if(exercise.notes)li.append(make('small','',exercise.notes));list.append(li);}body.append(list);if(record.notes)body.append(make('p','workout-record-notes',record.notes));
-      const actions=make('div','workout-record-actions'),editButton=make('button','secondary-button','Edit workout'),remove=make('button','delete-button','Delete workout');editButton.type=remove.type='button';editButton.addEventListener('click',()=>edit(record));remove.addEventListener('click',()=>{if(!window.confirm(`Delete “${record.title}” from this device?`))return;persist(records.filter(r=>r.id!==record.id));if(editing===record.id)resetDraft();renderHistory();$('workout-announcement').textContent=saved?'Workout deletion waiting for Google Sheet confirmation.':'Removed from this page; device saving is unavailable.';});const restart=make('button','secondary-button workout-restart','Restart session');restart.type='button';restart.addEventListener('click',()=>restartSession(record));if(isThrowingOffDay(record)||workoutRestContext(record)){remove.textContent=workoutRestContext(record)?'Undo rest completion':'Undo Off day';actions.append(remove);}else actions.append(editButton,restart,remove);body.append(actions);card.append(body);history.append(card);
+      const actions=make('div','workout-record-actions'),editButton=make('button','secondary-button','Edit workout'),remove=make('button','delete-button','Delete workout');editButton.type=remove.type='button';editButton.addEventListener('click',()=>edit(record));remove.addEventListener('click',()=>{if(!window.confirm(`Delete “${record.title}” from this device?`))return;persist(records.filter(r=>r.id!==record.id));if(editing===record.id)resetDraft();renderHistory();$('workout-announcement').textContent=saved?'Workout deletion waiting for Google Sheet confirmation.':'Removed from this page; device saving is unavailable.';});const restart=make('button','secondary-button workout-restart','Restart session');restart.type='button';restart.addEventListener('click',()=>restartSession(record));if(isThrowingSkip(record)||isThrowingOffDay(record)||workoutRestContext(record)){remove.textContent=isThrowingSkip(record)?'Undo skip':workoutRestContext(record)?'Undo rest completion':'Undo Off day';actions.append(remove);}else actions.append(editButton,restart,remove);body.append(actions);card.append(body);history.append(card);
     }
   }
   function exerciseFields(row){
@@ -2877,7 +2899,10 @@ export function startWorkoutFlow({players,scope,element:$,download,onChange,vari
     event.preventDefault();if(!['manual','checklist'].includes(mode))return;const existing=records.find(r=>r.id===editing),timestamp=new Date().toISOString(),exercises=[...$('workout-exercises').children].map(exerciseFields);
     const record={id:editing??globalThis.crypto?.randomUUID?.()??`workout-${Date.now()}-${Math.random().toString(36).slice(2)}`,player:$('workout-player').value,session_date:$('workout-date').value,title:$('workout-title').value.trim(),category:$('workout-category').value,duration_minutes:number($('workout-duration')),effort:$('workout-effort').value,notes:throwing?throwingSetupNotes(throwingSetup,$('workout-notes').value.trim()):$('workout-notes').value.trim(),exercises,completion_status:mode==='checklist'?(workoutChecklistProgress({exercises}).all?'completed':'partial'):$('workout-completion').value,completion_confirmed:mode==='checklist'||$('workout-confirm').checked,created_at:existing?.created_at??timestamp,updated_at:timestamp};if(sourceId)record.source_template_id=sourceId;if(mode==='checklist'){record.entry_mode='plan_checklist';if(pickedTemplate()?.equipment_mode)record.equipment_mode=pickedTemplate().equipment_mode;}
     if(!throwing&&sourceId&&workoutCoverage(sourceId).length){const progress=workoutProgramProgress(records,record.player);if(!editing&&(workoutIsLocked(sourceId,progress)||workoutCycleLocked(sourceId,progress)||workoutWeekLocked(sourceId,progress))){$('workout-error').hidden=false;$('workout-error').textContent=workoutCycleLocked(sourceId,progress)?`Finish Cycle ${progress.unlocked_cycle} before starting the next cycle.`:workoutWeekLocked(sourceId,progress)?'Finish the current week, including Day 7 rest, before starting the next week.':'This workout is already completed. Finish all three cycles before starting it again, or edit its saved entry to correct a mistake.';return;}record.program_round=existing?workoutRound(existing):progress.round;}
-    try{persist(upsertWorkout(records,record,players));}catch(error){$('workout-error').hidden=false;$('workout-error').textContent=error.message;return;}
+    const previous=throwing&&record.completion_status==='completed'
+      ?records.filter(prior=>!(isThrowingSkip(prior)&&prior.player===record.player&&prior.session_date===record.session_date))
+      :records;
+    try{persist(upsertWorkout(previous,record,players));}catch(error){$('workout-error').hidden=false;$('workout-error').textContent=error.message;return;}
     const wasEditing=Boolean(editing),progress=record.entry_mode==='plan_checklist'?workoutChecklistProgress(record):null;
     if(throwing){editing=null;sourceId='';dirty=false;mode='empty';clearExerciseRows();$('workout-save').disabled=true;$('workout-cancel-edit').hidden=true;$('workout-form').hidden=true;}else resetDraft();
     renderHistory();$('workout-announcement').textContent=`${throwing?'Throwing routine':'Workout'} ${wasEditing?'updated':'saved'} for ${record.player}. ${progress?`${progress.recorded} / ${progress.total} completed. `:''}${saved?'Waiting for Google Sheet confirmation.':'Kept in this open page; export before closing.'}${throwing?' Select a calendar day to continue, or reopen a saved entry to correct it.':''}`;
@@ -2891,6 +2916,7 @@ export function startWorkoutFlow({players,scope,element:$,download,onChange,vari
   }
   function restartSession(record,{confirm=true,journal=true}={}){
     if(confirm&&!window.confirm(`Restart “${record.title}” for ${record.player}? Its saved results will be removed and a fresh draft opened. Unsaved entries in this form will be cleared.`))return false;
+    if(isThrowingSkip(record))return deleteSession(record,{confirm:false,journal});
     if(isThrowingOffDay(record)){deleteSession(record,{confirm:false,journal});$('workout-announcement').textContent='Off day confirmation cleared. Open its calendar day to check it off again.';onNavigate?.(variant);return true;}
     dirty=false;editing=null;deleteSession(record,{confirm:false,journal});edit(record);resetDraft();$('workout-player').value=record.player;selectedPlayer=record.player;$('workout-date').value=record.session_date;
     if(mode==='manual'){$('workout-title').value=record.title;$('workout-category').value=record.category;clearExerciseRows();record.exercises.forEach(exercise=>addManual({name:exercise.name,sets:null,reps:null,weight:null,weight_unit:'lb',notes:'',...(exercise.planned_details?{planned_details:exercise.planned_details}:{}),...(exercise.source_exercise_id?{source_exercise_id:exercise.source_exercise_id}:{})}));}
@@ -2927,6 +2953,18 @@ export function startWorkoutFlow({players,scope,element:$,download,onChange,vari
     const timestamp=new Date().toISOString(),record={id:globalThis.crypto?.randomUUID?.()??`rest-${Date.now()}`,player,session_date:date,title:`Workout rest · Cycle ${cycle} · Week ${week} · Day 7`,category:'other',duration_minutes:null,effort:'',notes:'Day 7 rest from lifting and conditioning completed.',source_template_id:source,program_round:progress.round,completion_status:'completed',completion_confirmed:true,created_at:timestamp,updated_at:timestamp,exercises:[{name:'Rest completed',sets:null,reps:null,weight:null,weight_unit:'none',notes:'Day 7 rest confirmation.',completed:true}]};
     persist(upsertWorkout(records,record,players));return true;
   }
+  function setThrowingSkip({player,date,skipped}){
+    if(!throwing||!players.includes(player))throw Error('Choose a throwing calendar day.');
+    const id=`throwing-skip-${player}-${date}`,existing=records.find(record=>record.id===id);
+    if(!skipped){
+      if(existing)persist(records.filter(record=>record.id!==id));
+      return;
+    }
+    if(existing)return;
+    const timestamp=new Date().toISOString();
+    const record={id,player,session_date:date,title:'Throwing routine · Skipped',category:'other',duration_minutes:null,effort:'',notes:'Throwing day skipped.',source_template_id:THROWING_SKIP_SOURCE,created_at:timestamp,updated_at:timestamp,exercises:[{name:'Throwing day skipped',sets:null,reps:null,weight:null,weight_unit:'none',notes:'',completed:false}]};
+    persist(upsertWorkout(records,record,players));
+  }
   function setOffDay({player,date,completed}){
     if(!throwing||!players.includes(player)||typeof completed!=='boolean'||typeof date!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(date))throw Error('Choose a player and a valid Off day.');
     const stamp=Date.parse(date+'T12:00:00Z');if(!Number.isFinite(stamp)||new Date(stamp).toISOString().slice(0,10)!==date)throw Error('Choose a valid Off day date.');
@@ -2939,7 +2977,7 @@ export function startWorkoutFlow({players,scope,element:$,download,onChange,vari
   if(throwing)for(const id of ['throwing-plyo-brand','throwing-no-long-toss'])$(id).addEventListener('change',chooseThrowingSetup);
   $('workout-date').addEventListener('change',refreshReminders);
   if(sharedStore)sharedStore.subscribe(()=>{records=sharedStore.records();({readable,saved}=sharedStore.storageState());$('workout-storage-status').textContent=saved?'':'Device saving is unavailable; export before closing.';renderHistory();refreshReminders();});
-  resetDraft();renderHistory();return {applyPlyoballBrand(player,brand){if(!throwing||dirty||editing)return;const setup=throwingSetupForPlayer.get(player)??{longTossPlyo:false};throwingSetupForPlayer.set(player,{...setup,brand});if($('workout-player').value===player){throwingSetup={...setup,brand};updateThrowingControls();}},records:()=>records,commit:persist,subscribe:listener=>listeners.add(listener),storageState:()=>({readable,saved}),hasDraft:()=>dirty||Boolean(editing),editSession:edit,restartSession,deleteSession,openTemplate,openScheduledTemplate,setOffDay,setWorkoutRest,openRestDay};
+  resetDraft();renderHistory();return {applyPlyoballBrand(player,brand){if(!throwing||dirty||editing)return;const setup=throwingSetupForPlayer.get(player)??{longTossPlyo:false};throwingSetupForPlayer.set(player,{...setup,brand});if($('workout-player').value===player){throwingSetup={...setup,brand};updateThrowingControls();}},records:()=>records,commit:persist,subscribe:listener=>listeners.add(listener),storageState:()=>({readable,saved}),hasDraft:()=>dirty||Boolean(editing),editSession:edit,restartSession,deleteSession,openTemplate,openScheduledTemplate,setOffDay,setThrowingSkip,setWorkoutRest,openRestDay};
 }
 
 
@@ -3088,7 +3126,7 @@ export function workoutActivity(records,players,{from,to}){
   activityDate(from);activityDate(to);if(from>to)throw new TypeError('The start date must be on or before the end date.');
   if(!Array.isArray(records)||!Array.isArray(players)||new Set(players).size!==players.length)throw new TypeError('Invalid workout overview.');
   const seen=new Set();for(const record of records){validateWorkout(record,players);const key=JSON.stringify([record.player,record.id]);if(seen.has(key))throw new Error('Duplicate workout identity.');seen.add(key);}
-  const selected=records.filter(record=>record.session_date>=from&&record.session_date<=to);
+  const selected=records.filter(record=>!isThrowingSkip(record)&&record.session_date>=from&&record.session_date<=to);
   const rows=players.map(player=>{
     const entries=selected.filter(record=>record.player===player).sort((a,b)=>b.session_date.localeCompare(a.session_date)||String(b.coach_last_received_at??b.updated_at??b.created_at??'').localeCompare(String(a.coach_last_received_at??a.updated_at??a.created_at??'')));
     return {player,logged:entries.length,completed:entries.filter(r=>r.completion_status==='completed'&&r.completion_confirmed===true&&workoutActualDetails(r).all).length,partial:entries.filter(r=>r.completion_status==='partial').length,earlier_logs:entries.filter(r=>!r.completion_status).length,details_missing:entries.filter(r=>r.entry_mode!=='plan_checklist'&&!workoutActualDetails(r).all).length,last_workout_date:entries[0]?.session_date??null,records:entries};
