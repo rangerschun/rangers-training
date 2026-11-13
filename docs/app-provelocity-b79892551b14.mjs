@@ -156,8 +156,8 @@ import { TRAINING_BACKEND_CONFIG } from './training-config.mjs';
 import { trainingStorage } from './training-storage.mjs';
 import {startProVelocity as startUpdatedProVelocity} from './provelocity-ui.mjs?v=corrections-20261109';
 import {startSheetSync as startUpdatedSheetSync} from './sheet-sync.mjs?v=steady-provelocity-20261108';
-import {startPlayerAccess as startUpdatedPlayerAccess} from './player-access.mjs?v=steady-provelocity-20261108';
-import {startOverSpeed as startUpdatedOverSpeed} from './overspeed-ui.mjs?v=paired-completion-20261108';
+import {startPlayerAccess as startUpdatedPlayerAccess} from './player-access.mjs?v=checklist-20261113';
+import {startOverSpeed as startUpdatedOverSpeed} from './overspeed-ui.mjs?v=checklist-20261113';
 export function defaultPlyoballBrand(player,area='targets'){
  return ['Dominic','Marcus'].includes(player)||area==='throwing'?'driveline':'dubs';
 }
