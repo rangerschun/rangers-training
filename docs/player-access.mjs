@@ -18,7 +18,7 @@ export function startPlayerAccess({players,hashes,element:$,matches=jerseyCodeMa
    const select=$(id),section=$('view-'+view),status=cloudStatus?.(select.value);
    const signedIn=verified.has(select.value);
    const unlocked=canAccessView(view)||(signedIn&&(!cloudStatus||status?.ready));
-   const saving=view==='provelocity'&&signedIn&&status?.saving===true;
+   const saving=(view==='provelocity'||view==='overspeed')&&signedIn&&status?.saving===true;
    const bar=[...section.children].find(node=>node.classList.contains('tab-player-bar'));
    section.dataset.playerAccess=unlocked?'verified':saving?'saving':'locked';const message=$('access-message-'+view);message.hidden=unlocked&&!cloudStatus;if(canAccessView(view)){message.textContent='Coach access · team calendar.';}else if(status&&signedIn){message.replaceChildren(document.createTextNode(status.message));if(!unlocked&&!saving){const retry=document.createElement('button');retry.type='button';retry.className='secondary-button';retry.textContent=status.conflict?'Review waiting changes':'Retry Google Sheet';retry.addEventListener('click',()=>onRetry(select.value,view));message.append(retry);}}
    for(const child of section.children)if(child!==bar&&!child.classList.contains('page-heading')&&!child.classList.contains('player-access-message'))child.inert=!unlocked;
